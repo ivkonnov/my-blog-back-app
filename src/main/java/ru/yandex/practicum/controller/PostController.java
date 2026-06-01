@@ -18,9 +18,22 @@ public class PostController {
         this.postService = postService;
     }
 
+    // Получение постов по запросу из строки поиска
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<PagePostsDto> getPosts(
+            @RequestParam("search") String search,
+            @RequestParam("pageNumber") int pageNumber,
+            @RequestParam("pageSize") int pageSize
+    ) {
+        PagePostsDto page = postService.getPosts(search, pageNumber, pageSize);
+        return ResponseEntity.ok(page);
+    }
+
     // Добавление поста
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<PostDto> addPost(@Valid @RequestBody NewPostDto newPostDto) {
+    public ResponseEntity<PostDto> addPost(
+            @Valid @RequestBody NewPostDto newPostDto
+    ) {
         PostDto postDto = postService.addPost(newPostDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(postDto);
     }

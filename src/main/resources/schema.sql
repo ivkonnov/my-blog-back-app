@@ -1,6 +1,6 @@
 -- Таблица с поcтами
 CREATE TABLE IF NOT EXISTS posts (
-    id             BIGSERIAL PRIMARY KEY,
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     title          VARCHAR(128) NOT NULL,
     text           VARCHAR(4096) NOT NULL,
     likes_count    BIGINT DEFAULT 0,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS posts (
 
 -- Таблица с тегами
 CREATE TABLE IF NOT EXISTS tags (
-    id   BIGSERIAL PRIMARY KEY,
+    id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(25) UNIQUE NOT NULL
 );
 
@@ -23,5 +23,7 @@ CREATE TABLE IF NOT EXISTS posts_tags (
     FOREIGN KEY (tag_id) REFERENCES tags (id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_posts_title ON posts(title);
 CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
 CREATE INDEX IF NOT EXISTS idx_posts_tags_post_id ON posts_tags(post_id);
+CREATE INDEX IF NOT EXISTS idx_posts_tags_tag_id ON posts_tags(tag_id);

@@ -33,4 +33,13 @@ public class Post {
         this.likesCount = likesCount;
         this.commentsCount = commentsCount;
     }
+
+    public Post(Long id, String title, String text, List<String> tags, Long likesCount, Long commentsCount) {
+        this.id = id;
+        this.title = title;
+        this.text = text;
+        this.tags = tags;
+        this.likesCount = likesCount;
+        this.commentsCount = commentsCount;
+    }
 }

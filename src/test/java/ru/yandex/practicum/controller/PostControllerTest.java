@@ -3,6 +3,8 @@ package ru.yandex.practicum.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -14,13 +16,16 @@ import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.configuration.WebConfiguration;
 import ru.yandex.practicum.domain.Post;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static ru.yandex.practicum.dto.NewPostDto.*;
 
 @SpringJUnitConfig(WebConfiguration.class)
 @WebAppConfiguration
@@ -53,6 +58,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                 .andExpect(jsonPath("$.title").value(newPost.getTitle()))
                 .andExpect(jsonPath("$.text").value(newPost.getText()))
                 .andExpect(jsonPath("$.tags", hasSize(tags.size())))
+                .andExpect(jsonPath("$.tags", hasItems(tags.toArray())))
                 .andExpect(jsonPath("$.likesCount").value(newPost.getLikesCount()))
                 .andExpect(jsonPath("$.commentsCount").value(newPost.getCommentsCount()));
     }
@@ -67,9 +73,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .content(newEmptyPostJson))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.title").value("Заголовок поста обязателен"))
-                .andExpect(jsonPath("$.text").value("Текст поста обязателен"))
-                .andExpect(jsonPath("$.tags").value("Должен быть указан хотя бы один тег"));
+                .andExpect(jsonPath("$.title").value(MSG_TITLE_REQUIRED))
+                .andExpect(jsonPath("$.text").value(MSG_TEXT_REQUIRED))
+                .andExpect(jsonPath("$.tags").value(MSG_TAGS_REQUIRED));
     }
 
     @Test
@@ -83,9 +89,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .content(newNotValidPostJson))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.title").value("Заголовок поста не должен превышать 128 символов"))
-                .andExpect(jsonPath("$.text").value("Текст поста не должен превышать 4096 символов"))
-                .andExpect(jsonPath("$.tags").value("Длина тега не должна превышать 25 символов"));
+                .andExpect(jsonPath("$.title").value(MSG_TITLE_MAX_LENGTH))
+                .andExpect(jsonPath("$.text").value(MSG_TEXT_MAX_LENGTH))
+                .andExpect(jsonPath("$.tags").value(MSG_TAG_MAX_LENGTH));
     }
 
     @Test
@@ -102,76 +108,50 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .content(newNotValidPostJson))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.tags").value("Можно указать не более 10 тегов"));
+                .andExpect(jsonPath("$.tags").value(MSG_TAGS_MAX_COUNT));
     }
 
-    @Test
-    void getPosts_searchByTitleAndTags_1of1page_success() throws Exception {
+    @ParameterizedTest
+    @CsvSource({
+            "-ого #заметка поста #лонгрид, 1, 5, 2, 1",
+            "-ого пост, 3, 5, 5, 3",
+            "#заметка #лонгрид, 1, 5, 3, 1",
+            "'', 2, 5, 5, 4",                     // если строка поиска пустая, то из всех постов будут взяты 5 постов со смещением для 2-ой страницы
+            "несуществующий пост, 1, 5, 0, 0",    // если постов с таким заголовком не существует, то вернется пустая страница
+            "##заметка, 1, 5, 0, 0",              // если тег начинается с ##, то вернется пустая страница
+            "# #заметка, 1, 5, 5, 2"              // если тег пустой или введён случайно, то символ # игнорируем
+    })
+    void getPosts_success(String search, int pageNumber, int pageSize, int expectedPostsSize, int expectedLastPage) throws Exception {
+        LinkedList<String> expectedTitleList = new LinkedList<>();
+        List<String> expectedTags = new ArrayList<>();
+        String expectedTitle = "";
+
+        // формируем ожидаемый список тегов и подстроку заголовка, которые должны быть в каждом посте
+        if (!search.isEmpty()) {
+            String[] words = search.split(" ");
+            for (String word : words) {
+                // формируем ожидаемый список тегов
+                if (word.startsWith("#")) {
+                    if (word.length() > 1) expectedTags.add(word.substring(1));
+                }
+                else expectedTitleList.add(word);
+            }
+            // собираем подстроку ожидаемого заголовка
+            expectedTitle = String.join(" ", expectedTitleList);
+        }
+
         mockMvc.perform(get("/api/posts")
-                    .param("search", "ого #заметка поста #лонгрид")
-                    .param("pageNumber", "1")
-                    .param("pageSize", "5"))
+                    .param("search", search)
+                    .param("pageNumber", String.valueOf(pageNumber))
+                    .param("pageSize", String.valueOf(pageSize)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.posts", hasSize(2)))
-                .andExpect(jsonPath("$.hasPrev").value(false))
-                .andExpect(jsonPath("$.hasNext").value(false))
-                .andExpect(jsonPath("$.lastPage").value(1));
+                .andExpect(jsonPath("$.posts", hasSize(expectedPostsSize)))
+                .andExpect(jsonPath("$.posts[*].title", everyItem(containsString(expectedTitle))))
+                .andExpect(jsonPath("$.posts[*].tags", everyItem(hasItems(expectedTags.toArray()))))
+                .andExpect(jsonPath("$.hasPrev").value(pageNumber > 1))
+                .andExpect(jsonPath("$.hasNext").value(pageNumber < expectedLastPage))
+                .andExpect(jsonPath("$.lastPage").value(expectedLastPage));
     }
 
-    @Test
-    void getPosts_searchByTitle_3of3pages_success() throws Exception {
-        mockMvc.perform(get("/api/posts")
-                        .param("search", "-ого пост")
-                        .param("pageNumber", "3")
-                        .param("pageSize", "5"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.posts", hasSize(5)))
-                .andExpect(jsonPath("$.hasPrev").value(true))
-                .andExpect(jsonPath("$.hasNext").value(false))
-                .andExpect(jsonPath("$.lastPage").value(3));
-    }
-
-    @Test
-    void getPosts_searchByTags_1of1page_success() throws Exception {
-        mockMvc.perform(get("/api/posts")
-                        .param("search", "#заметка #лонгрид")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.posts", hasSize(3)))
-                .andExpect(jsonPath("$.hasPrev").value(false))
-                .andExpect(jsonPath("$.hasNext").value(false))
-                .andExpect(jsonPath("$.lastPage").value(1));
-    }
-
-    @Test
-    void getPosts_ifSearchIsEmpty_2of4pages_success() throws Exception {
-        mockMvc.perform(get("/api/posts")
-                        .param("search","")
-                        .param("pageNumber", "2")
-                        .param("pageSize", "5"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.posts", hasSize(5)))
-                .andExpect(jsonPath("$.hasPrev").value(true))
-                .andExpect(jsonPath("$.hasNext").value(true))
-                .andExpect(jsonPath("$.lastPage").value(4));
-    }
-
-    @Test
-    void getPosts_ifNotFoundPosts_returnEmptyPage_success() throws Exception {
-        mockMvc.perform(get("/api/posts")
-                        .param("search","несуществующий пост")
-                        .param("pageNumber", "1")
-                        .param("pageSize", "5"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.posts", hasSize(0)))
-                .andExpect(jsonPath("$.hasPrev").value(false))
-                .andExpect(jsonPath("$.hasNext").value(false))
-                .andExpect(jsonPath("$.lastPage").value(0));
-    }
 }

@@ -39,7 +39,9 @@ public class PostService {
 
             // формируем список тегов и заголовка
             for (String word : words) {
-                if (word.startsWith("#")) tags.add(word.substring(1));
+                if (word.startsWith("#")) {
+                    if (word.length() > 1) tags.add(word.substring(1));
+                }
                 else titleList.add(word);
             }
             // собираем заголовок согласно правилам поиска

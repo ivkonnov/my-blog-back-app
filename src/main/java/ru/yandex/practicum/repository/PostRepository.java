@@ -27,4 +27,9 @@ public interface PostRepository {
 
     List<Post> findPagePostsByTags(List<String> tags, int limit, int offset);
 
+    boolean updateImage(Long id, byte[] image);
+
+    Optional<byte[]> findImageById(Long id);
+
+    boolean existsById(Long id);
 }

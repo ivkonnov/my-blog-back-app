@@ -1,5 +1,6 @@
 package ru.yandex.practicum.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.domain.Post;
@@ -11,6 +12,7 @@ import ru.yandex.practicum.repository.PostRepository;
 
 import java.util.*;
 
+@Slf4j
 @Service
 public class PostService {
 
@@ -82,5 +84,26 @@ public class PostService {
         Long id = postRepository.save(post);
         post.setId(id);
         return postMapper.toPostDto(post);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<PostDto> getPost(Long id) {
+        return postRepository.findById(id)
+                .map(postMapper::toPostDto);
+    }
+
+    @Transactional
+    public boolean updateImage(Long id, byte[] image) {
+        return postRepository.updateImage(id, image);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<byte[]> getImage(Long id) {
+        return postRepository.findImageById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsPost(Long id) {
+        return postRepository.existsById(id);
     }
 }

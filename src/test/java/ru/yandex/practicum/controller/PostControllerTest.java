@@ -7,9 +7,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import ru.yandex.practicum.AbstractPostgresMvcTest;
@@ -22,8 +24,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static ru.yandex.practicum.dto.NewPostDto.*;
 
@@ -152,6 +153,87 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                 .andExpect(jsonPath("$.hasPrev").value(pageNumber > 1))
                 .andExpect(jsonPath("$.hasNext").value(pageNumber < expectedLastPage))
                 .andExpect(jsonPath("$.lastPage").value(expectedLastPage));
+    }
+
+    @Test
+    void getPost_success() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}", 1L))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.title").value("Название 1-ого поста"))
+                .andExpect(jsonPath("$.text").value("Контент 1-ого поста"))
+                .andExpect(jsonPath("$.tags", hasSize(1)))
+                .andExpect(jsonPath("$.tags", hasItem("пост_1")))
+                .andExpect(jsonPath("$.likesCount").value(0))
+                .andExpect(jsonPath("$.commentsCount").value(0));
+    }
+
+    @Test
+    void getPost_notFound() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}", 999L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateAndGetImage_success() throws Exception {
+        byte[] jpegStub = new byte[]{(byte) 137, 80, 78, 71};
+        MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", jpegStub);
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/api/posts/{postId}/image", 1L)
+                        .file(image)
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/posts/{postId}/image", 1L))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_JPEG))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().bytes(jpegStub));
+
+    }
+
+    @Test
+    void updateImage_emptyFile_badRequest() throws Exception {
+        MockMultipartFile emptyImage = new MockMultipartFile("image", "image.jpg", "image/jpeg", new byte[0]);
+
+        mockMvc.perform(multipart("/api/posts/{postId}/image", 1L)
+                        .file(emptyImage)
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("Empty image"));
+    }
+
+    @Test
+    void updateImage_postNotFound_404() throws Exception {
+        MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/posts/{postId}/image", 999L)
+                        .file(image)
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("Post not found"));
+    }
+
+    @Test
+    void getImage_postHasNoImage_404() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}/image", 2L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getImage_postNotFound_404() throws Exception {
+        mockMvc.perform(get("/api/posts/{postId}/image", 999L))
+                .andExpect(status().isNotFound());
     }
 
 }

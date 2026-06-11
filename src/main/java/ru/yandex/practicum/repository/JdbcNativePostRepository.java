@@ -80,27 +80,30 @@ public class JdbcNativePostRepository implements PostRepository {
     public Optional<Post> findById(Long id) {
         try {
             // Получаем пост
-            Post post = jdbcTemplate.queryForObject("SELECT id, title, text, likes_count, comments_count FROM posts WHERE id = ?",
-                    (resultSet, rowNum) ->
-                            new Post(
-                                    resultSet.getLong("id"),
-                                    resultSet.getString("title"),
-                                    resultSet.getString("text"),
-                                    resultSet.getLong("likes_count"),
-                                    resultSet.getLong("comments_count")
-                            ),
-                    id
-            );
+            Post post = jdbcTemplate.queryForObject(
+                """
+                    SELECT p.id, p.title, p.text, p.likes_count, p.comments_count, ARRAY_AGG(t.name) AS tag_names
+                    FROM posts p
+                    JOIN posts_tags pt ON p.id = pt.post_id
+                    JOIN tags t ON pt.tag_id = t.id
+                    WHERE p.id = ?
+                    GROUP BY p.id
+                """,
+                (resultSet, rowNum) -> {
+                    String[] resultTags = (String[]) resultSet.getArray("tag_names").getArray();
+                    List<String> tagList = Arrays.asList(resultTags);
 
-            // Получаем теги
-            List<String> tags = jdbcTemplate.query("SELECT t.name FROM tags t JOIN posts_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?",
-                    (resultSet, rowNum) -> resultSet.getString("name"),
-                    id
+                    return new Post(
+                            resultSet.getLong("id"),
+                            resultSet.getString("title"),
+                            resultSet.getString("text"),
+                            tagList,
+                            resultSet.getLong("likes_count"),
+                            resultSet.getLong("comments_count")
+                    );
+                },
+                id
             );
-            // Устанавливаем теги в пост
-            post.setTags(tags);
-
-            log.info("Post found id: {} title: {}", id, post.getTitle());
             return Optional.of(post);
         } catch (EmptyResultDataAccessException e) {
             log.warn("Post not found id: {}", id);
@@ -133,7 +136,7 @@ public class JdbcNativePostRepository implements PostRepository {
                 """,
                 Long.class,
                 "%" + title + "%",
-                (Object) tags.toArray(String[]::new)
+                tags.toArray(String[]::new)
         );
     }
 
@@ -308,6 +311,42 @@ public class JdbcNativePostRepository implements PostRepository {
                 limit,
                 offset
         );
+    }
+
+    @Override
+    public boolean updateImage(Long id, byte[] image) {
+        int updated = jdbcTemplate.update(
+                "UPDATE posts SET image = ? WHERE id = ?",
+                image, id
+        );
+        return updated > 0;
+    }
+
+    @Override
+    public Optional<byte[]> findImageById(Long id) {
+        return jdbcTemplate.query(
+                "SELECT image FROM posts WHERE id = ?",
+                preparedStatement -> preparedStatement.setLong(1, id),
+                resultSet -> {
+                    if (resultSet.next()) {
+                        byte[] bytes = resultSet.getBytes("image");
+                        if (bytes != null && bytes.length > 0) {
+                            return Optional.of(bytes);
+                        }
+                    }
+                    return Optional.empty();
+                }
+        );
+    }
+
+    @Override
+    public boolean existsById(Long id) {
+        Integer postsCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM posts WHERE id = ?",
+                Integer.class,
+                id
+        );
+        return postsCount != null && postsCount > 0;
     }
 
 }

@@ -28,21 +28,21 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     void save_addPost() {
         List<String> tags = List.of("пост_n", "пост_n-ый");
         Post newPost = new Post("Название n-ого поста", "Контент n-ого поста", tags);
+
         Long postId = postRepository.save(newPost);
+        assertNotNull(postId);
+
         Optional<Post> postOptional = postRepository.findById(postId);
-
         assertTrue(postOptional.isPresent());
-        Post post = postOptional.get();
 
+        Post post = postOptional.get();
         assertEquals(postId, post.getId());
         assertEquals(newPost.getTitle(), post.getTitle());
         assertEquals(newPost.getText(), post.getText());
         assertEquals(newPost.getLikesCount(), post.getLikesCount());
         assertEquals(newPost.getCommentsCount(), post.getCommentsCount());
         assertEquals(tags.size(), post.getTags().size());
-        for (String tag : tags) {
-            assertTrue(post.getTags().contains(tag));
-        }
+        assertTrue(post.getTags().containsAll(tags));
     }
 
     @ParameterizedTest
@@ -143,9 +143,7 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
 
         for (Post post : posts) {
             List<String> postTags = post.getTags();
-            for (String tag : tags) {
-                assertTrue(postTags.contains(tag));
-            }
+            assertTrue(postTags.containsAll(tags));
         }
     }
 
@@ -180,9 +178,7 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
             assertTrue(titlePost.toLowerCase().contains(title.toLowerCase()));
 
             List<String> postTags = post.getTags();
-            for (String tag : tags) {
-                assertTrue(postTags.contains(tag));
-            }
+            assertTrue(postTags.containsAll(tags));
         }
     }
 
@@ -215,5 +211,49 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
 
         );
     }
-}
 
+    @Test
+    void getPost_success() {
+        Optional<Post> postOptional = postRepository.findById(1L);
+        assertTrue(postOptional.isPresent());
+
+        Post post = postOptional.get();
+        assertEquals(1L, post.getId());
+        assertEquals("Название 1-ого поста", post.getTitle());
+        assertEquals("Контент 1-ого поста", post.getText());
+        assertEquals(1, post.getTags().size());
+        assertTrue(post.getTags().contains("пост_1"));
+        assertEquals(0, post.getLikesCount());
+        assertEquals(0, post.getCommentsCount());
+    }
+
+    @Test
+    void getPost_returnEmpty_whenNotExists() {
+        Optional<Post> postOptional = postRepository.findById(999L);
+        assertTrue(postOptional.isEmpty());
+    }
+
+    @Test
+    void updateAndFindImage_success() {
+        byte[] newImage = new byte[]{1, 2, 3, 4};
+        assertTrue(postRepository.updateImage(1L, newImage));
+
+        Optional<byte[]> imageFromDbOptional = postRepository.findImageById(1L);
+        assertTrue(imageFromDbOptional.isPresent());
+        byte[] imageFromDb = imageFromDbOptional.get();
+        assertArrayEquals(newImage, imageFromDb);
+    }
+
+    @Test
+    void getImage_returnEmpty_whenNotSet() {
+        Optional<byte[]> postOptional = postRepository.findImageById(1L);
+        assertTrue(postOptional.isEmpty());
+    }
+
+    @Test
+    void existsById_true_and_false() {
+        assertTrue(postRepository.existsById(1L));
+        assertFalse(postRepository.existsById(999L));
+    }
+
+}

@@ -215,6 +215,18 @@ public class JdbcNativePostRepository implements PostRepository {
     }
 
     @Override
+    public Long addLike(Long postId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("postId", postId);
+
+        return nameParamJdbcTemplate.queryForObject(
+                "UPDATE posts SET likes_count = likes_count + 1 WHERE id = :postId RETURNING likes_count",
+                params,
+                Long.class
+        );
+    }
+
+    @Override
     public Optional<Post> findById(Long postId) {
         try {
             MapSqlParameterSource params = new MapSqlParameterSource()

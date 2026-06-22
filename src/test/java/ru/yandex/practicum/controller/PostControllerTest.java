@@ -224,7 +224,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         }
 
         @Test
-        void getPost_notFound() throws Exception {
+        void getPost_postNotFound() throws Exception {
             mockMvc.perform(get("/api/posts/{postId}", 999L))
                     .andExpect(status().isNotFound());
         }
@@ -282,7 +282,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         }
 
         @Test
-        void updatePost_notFound() throws Exception {
+        void updatePost_postNotFound() throws Exception {
             Post updatePost = Post.builder()
                     .id(999L)
                     .title("Новое название")
@@ -365,6 +365,33 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(jsonPath("$.title").value(MSG_TITLE_MAX_LENGTH))
                     .andExpect(jsonPath("$.text").value(MSG_TEXT_MAX_LENGTH))
                     .andExpect(jsonPath("$.tags").value(MSG_TAG_MAX_LENGTH));
+        }
+    }
+
+    @Nested
+    class Likes {
+        @BeforeEach
+        void setUp(ApplicationContext context) {
+            // генерируем 1 пост
+            setUpAddPosts(context, 1);
+        }
+
+        @Test
+        void like_success() throws Exception {
+            for (int i = 1; i < 10; i++) {
+                mockMvc.perform(post("/api/posts/{postId}/likes", 1L))
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(content().string(String.valueOf(i)));
+            }
+        }
+
+        @Test
+        void like_postNotFound() throws Exception {
+            for (int i = 1; i < 10; i++) {
+                mockMvc.perform(post("/api/posts/{postId}/likes", 999L))
+                        .andExpect(status().isNotFound());
+            }
         }
     }
 

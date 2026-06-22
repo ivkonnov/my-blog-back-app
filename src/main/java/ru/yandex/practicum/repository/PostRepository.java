@@ -13,6 +13,8 @@ public interface PostRepository {
 
     Post update(Long postId, Post post);
 
+    Long addLike(Long postId);
+
     Long countPosts();
 
     Long countPostsByTitleAndTags(String title, List<String> tags);

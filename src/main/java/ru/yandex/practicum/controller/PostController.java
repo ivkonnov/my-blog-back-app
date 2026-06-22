@@ -47,7 +47,7 @@ public class PostController {
         return ResponseEntity.status(HttpStatus.CREATED).body(postDto);
     }
 
-    // Получение поста по id
+    // Получение поста
     @GetMapping(value = "/{postId}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<PostDto> getPost(@PathVariable("postId") Long postId) {
         log.info("Get post with id {}", postId);
@@ -57,6 +57,23 @@ public class PostController {
                     log.warn("Post with id {} not found", postId);
                     return ResponseEntity.notFound().build();
                 });
+    }
+
+    // Обновление поста
+    @PutMapping(value = "/{postId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<PostDto> updatePost(@PathVariable("postId") Long postId, @Valid @RequestBody UpdatePostDto updatePostDto) {
+        if (!postId.equals(updatePostDto.id())) {
+            log.warn("Post id {} and update post id {} are different", postId, updatePostDto.id());
+            return ResponseEntity.badRequest().build();
+        }
+        if (!postService.existsPost(postId)) {
+            log.warn("Post with id {} not found", postId);
+            return ResponseEntity.notFound().build();
+        }
+
+        log.info("Update post with id {}", postId);
+        PostDto postDto = postService.updatePost(postId, updatePostDto);
+        return ResponseEntity.ok(postDto);
     }
 
     // Обновление картинки поста
@@ -74,8 +91,8 @@ public class PostController {
             log.warn("Empty image for post with id {}", postId);
             return ResponseEntity.badRequest().body("Empty image");
         }
-        boolean ok = postService.updateImage(postId, image.getBytes());
-        if (!ok) {
+        boolean updated = postService.updateImage(postId, image.getBytes());
+        if (!updated) {
             log.error("Failed to update image for post with id {}", postId);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to update image");
         }

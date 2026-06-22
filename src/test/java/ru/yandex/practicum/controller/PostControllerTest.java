@@ -6,7 +6,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
@@ -25,11 +27,12 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static ru.yandex.practicum.dto.NewPostDto.*;
+import static ru.yandex.practicum.dto.PostValidationConstants.*;
 
 @SpringJUnitConfig(WebConfiguration.class)
 @WebAppConfiguration
@@ -65,7 +68,13 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                 "##заметка, 1, 5, 0, 0",              // если тег начинается с ##, то вернется пустая страница
                 "# #заметка, 1, 5, 5, 2"              // если тег пустой или введён случайно, то символ # игнорируем
         })
-        void searchPosts_success(String search, int pageNumber, int pageSize, int expectedPostsSize, int expectedLastPage) throws Exception {
+        void searchPosts_success(
+                String search,
+                int pageNumber,
+                int pageSize,
+                int expectedPostsSize,
+                int expectedLastPage
+        ) throws Exception {
             LinkedList<String> expectedTitleList = new LinkedList<>();
             List<String> expectedTags = new ArrayList<>();
             String expectedTitle = "";
@@ -100,10 +109,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
 
     @Nested
     class AddPost {
-        @Test
-        void addPost_success() throws Exception {
-            List<String> tags = List.of("пост_n", "пост_n-ый");
-            Post newPost = new Post("Название n-ого поста", "Контент n-ого поста", tags);
+        @ParameterizedTest
+        @MethodSource("provideAddPost")
+        void addPost_success(Post newPost) throws Exception {
             String newPostJson = objectMapper.writeValueAsString(newPost);
 
             mockMvc.perform(post("/api/posts")
@@ -114,31 +122,61 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(jsonPath("$.id").exists())
                     .andExpect(jsonPath("$.title").value(newPost.getTitle()))
                     .andExpect(jsonPath("$.text").value(newPost.getText()))
-                    .andExpect(jsonPath("$.tags", hasSize(tags.size())))
-                    .andExpect(jsonPath("$.tags", hasItems(tags.toArray())))
+                    .andExpect(jsonPath("$.tags", hasSize(newPost.getTags().size())))
+                    .andExpect(jsonPath("$.tags", hasItems(newPost.getTags().toArray())))
                     .andExpect(jsonPath("$.likesCount").value(newPost.getLikesCount()))
                     .andExpect(jsonPath("$.commentsCount").value(newPost.getCommentsCount()));
         }
 
-        @Test
-        void addPost_notValid() throws Exception {
-            Post newEmptyPost = new Post("", "", null);
-            String newEmptyPostJson = objectMapper.writeValueAsString(newEmptyPost);
+        private static Stream<Arguments> provideAddPost() {
+            String title = "Название n-ого поста";
+            String text = "Контент n-ого поста";
+            return Stream.of(
+                    Arguments.of(Post.builder().title(title).text(text).tags(List.of("пост_n")).build()),
+                    Arguments.of(Post.builder().title(title).text(text).tags(List.of("пост_n", "заметка")).build())
+            );
+        }
+
+        @ParameterizedTest
+        @MethodSource("provideAddPostNotValid")
+        void addPost_notValid(
+                Post newNotValidPost,
+                String expectedMessageTagsNotValid
+        ) throws Exception {
+            String newNotValidPostJson = objectMapper.writeValueAsString(newNotValidPost);
 
             mockMvc.perform(post("/api/posts")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(newEmptyPostJson))
+                            .content(newNotValidPostJson))
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.title").value(MSG_TITLE_REQUIRED))
                     .andExpect(jsonPath("$.text").value(MSG_TEXT_REQUIRED))
-                    .andExpect(jsonPath("$.tags").value(MSG_TAGS_REQUIRED));
+                    .andExpect(jsonPath("$.tags").value(expectedMessageTagsNotValid));
+        }
+
+        private static Stream<Arguments> provideAddPostNotValid() {
+            List<String> notValidMinCountTags = List.of();
+            List<String> notValidMaxCountTags = IntStream.range(0, 11)
+                    .mapToObj(i -> "\"tag\"")
+                    .toList();
+
+            return Stream.of(
+                    Arguments.of(Post.builder().title(null).text(null).tags(null).build(), MSG_TAGS_NOT_NULL),
+                    Arguments.of(Post.builder().title("").text("").tags(notValidMinCountTags).build(), MSG_TAGS_MIN_MAX_COUNT),
+                    Arguments.of(Post.builder().title("").text("").tags(notValidMaxCountTags).build(), MSG_TAGS_MIN_MAX_COUNT)
+            );
         }
 
         @Test
         void addPost_notValidMaxLength() throws Exception {
             List<String> tags = List.of("a".repeat(26));
-            Post newNotValidPost = new Post("a".repeat(129), "a".repeat(4097), tags);
+            Post newNotValidPost = Post.builder()
+                    .title("a".repeat(129))
+                    .text("a".repeat(4097))
+                    .tags(tags)
+                    .build();
+
             String newNotValidPostJson = objectMapper.writeValueAsString(newNotValidPost);
 
             mockMvc.perform(post("/api/posts")
@@ -150,51 +188,183 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(jsonPath("$.text").value(MSG_TEXT_MAX_LENGTH))
                     .andExpect(jsonPath("$.tags").value(MSG_TAG_MAX_LENGTH));
         }
-
-        @Test
-        void addPost_notValidMaxCountTags() throws Exception {
-            List<String> notValidMaxCountTags = IntStream.range(0, 11)
-                    .mapToObj(i -> "\"tag\"")
-                    .toList();
-
-            Post newNotValidPost = new Post("Название n-ого поста", "Контент n-ого поста", notValidMaxCountTags);
-            String newNotValidPostJson = objectMapper.writeValueAsString(newNotValidPost);
-
-            mockMvc.perform(post("/api/posts")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(newNotValidPostJson))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.tags").value(MSG_TAGS_MAX_COUNT));
-        }
     }
 
     @Nested
     class GetPost {
         @BeforeAll
         static void setUp(ApplicationContext context) {
-            // генерируем 1 пост
-            setUpAddPosts(context, 1);
+            // генерируем 2 поста
+            setUpAddPosts(context, 2);
         }
 
-        @Test
-        void getPost_success() throws Exception {
-            mockMvc.perform(get("/api/posts/{postId}", 1L))
+        @ParameterizedTest
+        @MethodSource("provideGetPost")
+        void getPost_success(
+                Long postId,
+                Post expectedPost
+        ) throws Exception {
+            mockMvc.perform(get("/api/posts/{postId}", postId))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.id").value(1L))
-                    .andExpect(jsonPath("$.title").value("Название 1-ого поста"))
-                    .andExpect(jsonPath("$.text").value("Контент 1-ого поста"))
-                    .andExpect(jsonPath("$.tags", hasSize(1)))
-                    .andExpect(jsonPath("$.tags", hasItem("пост_1")))
-                    .andExpect(jsonPath("$.likesCount").value(0))
-                    .andExpect(jsonPath("$.commentsCount").value(0));
+                    .andExpect(jsonPath("$.id").value(postId))
+                    .andExpect(jsonPath("$.title").value(expectedPost.getTitle()))
+                    .andExpect(jsonPath("$.text").value(expectedPost.getText()))
+                    .andExpect(jsonPath("$.tags", hasSize(expectedPost.getTags().size())))
+                    .andExpect(jsonPath("$.tags", hasItems(expectedPost.getTags().toArray())))
+                    .andExpect(jsonPath("$.likesCount").value(expectedPost.getLikesCount()))
+                    .andExpect(jsonPath("$.commentsCount").value(expectedPost.getCommentsCount()));
+        }
+
+        private static Stream<Arguments> provideGetPost() {
+            return Stream.of(
+                    Arguments.of(1L, Post.builder().id(1L).title("Название 1-ого поста").text("Контент 1-ого поста").tags(List.of("пост_1")).likesCount(0L).commentsCount(0L).build()),
+                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "заметка")).likesCount(0L).commentsCount(0L).build())
+            );
         }
 
         @Test
         void getPost_notFound() throws Exception {
             mockMvc.perform(get("/api/posts/{postId}", 999L))
                     .andExpect(status().isNotFound());
+        }
+    }
+
+    @Nested
+    class UpdatePost {
+        @BeforeEach
+        void setUp(ApplicationContext context) {
+            // генерируем 2 поста
+            setUpAddPosts(context, 2);
+        }
+
+        @ParameterizedTest
+        @MethodSource("provideUpdatePost")
+        void updatePost_success(
+                Long postId,
+                Post updatePost,
+                List<String> expectedUpdateTags
+        ) throws Exception {
+            String updatePostJson = objectMapper.writeValueAsString(updatePost);
+
+            mockMvc.perform(put("/api/posts/{postId}", postId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(updatePostJson))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(postId))
+                    .andExpect(jsonPath("$.title").value(updatePost.getTitle()))
+                    .andExpect(jsonPath("$.text").value(updatePost.getText()))
+                    .andExpect(jsonPath("$.tags", hasSize(expectedUpdateTags.size())))
+                    .andExpect(jsonPath("$.tags", hasItems(expectedUpdateTags.toArray())));
+        }
+
+        private static Stream<Arguments> provideUpdatePost() {
+            return Stream.of(
+                    // обновляем только название и контент 1-ого поста с передачей пустого списка тегов [], что означает без изменений тегов
+                    Arguments.of(1L, Post.builder().id(1L).title("Новое название").text("Новый контент").tags(List.of()).build(), List.of("пост_1")),
+
+                    // обновляем все поля: название, контент и тег 1-ого поста
+                    Arguments.of(1L, Post.builder().id(1L).title("Новое название").text("Новый контент").tags(List.of("новый_тег")).build(), List.of("новый_тег")),
+                    // обновляем только тег 1-ого поста
+                    Arguments.of(1L, Post.builder().id(1L).title("Название 1-ого поста").text("Контент 1-ого поста").tags(List.of("новый_тег")).build(), List.of("новый_тег")),
+
+                    // если обновить 2-ой пост, но ничего не изменяя
+                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "заметка")).build(), List.of("пост_2", "заметка")),
+                    // обновляем только теги 2-ого поста, удалив 1 тег
+                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2")).build(), List.of("пост_2")),
+                    // обновляем только теги 2-ого поста, добавив 1 тег
+                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "заметка", "новый_тег")).build(), List.of("пост_2", "заметка", "новый_тег")),
+
+                    // обновляем только теги 2-ого поста, удалив 1 тег и добавив 1 тег
+                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "новый_тег")).build(), List.of("пост_2", "новый_тег"))
+            );
+        }
+
+        @Test
+        void updatePost_notFound() throws Exception {
+            Post updatePost = Post.builder()
+                    .id(999L)
+                    .title("Новое название")
+                    .text("Новый контент")
+                    .tags(List.of("новый_тег"))
+                    .build();
+
+            String updatePostJson = objectMapper.writeValueAsString(updatePost);
+
+            mockMvc.perform(put("/api/posts/{postId}", 999L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(updatePostJson))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void updatePost_diffId_badRequest() throws Exception {
+            Post updatePost = Post.builder()
+                    .id(1L)
+                    .title("Новое название")
+                    .text("Новый контент")
+                    .tags(List.of("новый_тег"))
+                    .build();
+
+            String updatePostJson = objectMapper.writeValueAsString(updatePost);
+
+            mockMvc.perform(put("/api/posts/{postId}", 999L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(updatePostJson))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @ParameterizedTest
+        @MethodSource("provideUpdatePostNotValid")
+        void updatePost_notValid(
+                Post updateNotValidPost,
+                String expectedMessageTagsNotValid
+        ) throws Exception {
+            String updateNotValidPostJson = objectMapper.writeValueAsString(updateNotValidPost);
+
+            mockMvc.perform(put("/api/posts/{postId}", 1L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(updateNotValidPostJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(MSG_ID_REQUIRED))
+                    .andExpect(jsonPath("$.title").value(MSG_TITLE_REQUIRED))
+                    .andExpect(jsonPath("$.text").value(MSG_TEXT_REQUIRED))
+                    .andExpect(jsonPath("$.tags").value(expectedMessageTagsNotValid));
+        }
+
+        private static Stream<Arguments> provideUpdatePostNotValid() {
+            List<String> notValidMaxCountTags = IntStream.range(0, 11)
+                    .mapToObj(i -> "\"tag\"")
+                    .toList();
+
+            return Stream.of(
+                    Arguments.of(Post.builder().title(null).text(null).tags(null).build(), MSG_TAGS_NOT_NULL),
+                    Arguments.of(Post.builder().title("").text("").tags(notValidMaxCountTags).build(), MSG_TAGS_MIN_MAX_COUNT)
+            );
+        }
+
+        @Test
+        void updatePost_notValidMaxLength() throws Exception {
+            List<String> tags = List.of("a".repeat(26));
+            Post updateNotValidPost = Post.builder()
+                    .id(1L)
+                    .title("a".repeat(129))
+                    .text("a".repeat(4097))
+                    .tags(tags)
+                    .build();
+
+            String updateNotValidPostJson = objectMapper.writeValueAsString(updateNotValidPost);
+
+            mockMvc.perform(put("/api/posts/{postId}", 1L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(updateNotValidPostJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.title").value(MSG_TITLE_MAX_LENGTH))
+                    .andExpect(jsonPath("$.text").value(MSG_TEXT_MAX_LENGTH))
+                    .andExpect(jsonPath("$.tags").value(MSG_TAG_MAX_LENGTH));
         }
     }
 

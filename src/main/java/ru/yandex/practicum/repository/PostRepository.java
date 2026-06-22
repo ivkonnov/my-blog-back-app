@@ -9,7 +9,9 @@ public interface PostRepository {
 
     Long save(Post post);
 
-    Optional<Post> findById(Long id);
+    Optional<Post> findById(Long postId);
+
+    Post update(Long postId, Post post);
 
     Long countPosts();
 
@@ -27,9 +29,9 @@ public interface PostRepository {
 
     List<Post> findPagePostsByTags(List<String> tags, int limit, int offset);
 
-    boolean updateImage(Long id, byte[] image);
+    boolean updateImage(Long postId, byte[] image);
 
-    Optional<byte[]> findImageById(Long id);
+    Optional<byte[]> findImageById(Long postId);
 
     boolean existsById(Long id);
 }

@@ -7,6 +7,7 @@ import ru.yandex.practicum.domain.Post;
 import ru.yandex.practicum.dto.NewPostDto;
 import ru.yandex.practicum.dto.PagePostsDto;
 import ru.yandex.practicum.dto.PostDto;
+import ru.yandex.practicum.dto.UpdatePostDto;
 import ru.yandex.practicum.mapper.PostMapper;
 import ru.yandex.practicum.repository.PostRepository;
 
@@ -64,6 +65,7 @@ public class PostService {
         // если посты есть, то запрашиваем их с фильтрами в зависимости от наличия тегов и заголовка
         if (countPosts > 0) {
             int offset = (pageNumber - 1) * pageSize;
+
             if (!title.isEmpty() && !tags.isEmpty()) posts = postRepository.findPagePostsByTitleAndTags(title, tags, pageSize, offset);
             else if (!title.isEmpty()) posts = postRepository.findPagePostsByTitle(title, pageSize, offset);
             else if (!tags.isEmpty()) posts = postRepository.findPagePostsByTags(tags, pageSize, offset);
@@ -81,29 +83,36 @@ public class PostService {
     @Transactional
     public PostDto addPost(NewPostDto newPostDto) {
         Post post = postMapper.toPost(newPostDto);
-        Long id = postRepository.save(post);
-        post.setId(id);
+        Long postId = postRepository.save(post);
+        post.setId(postId);
         return postMapper.toPostDto(post);
     }
 
     @Transactional(readOnly = true)
-    public Optional<PostDto> getPost(Long id) {
-        return postRepository.findById(id)
+    public Optional<PostDto> getPost(Long postId) {
+        return postRepository.findById(postId)
                 .map(postMapper::toPostDto);
     }
 
     @Transactional
-    public boolean updateImage(Long id, byte[] image) {
-        return postRepository.updateImage(id, image);
+    public PostDto updatePost(Long postId, UpdatePostDto updatePostDto) {
+        Post updatePost = postMapper.toPost(updatePostDto);
+        Post updatePostFromDb = postRepository.update(postId, updatePost);
+        return postMapper.toPostDto(updatePostFromDb);
+    }
+
+    @Transactional
+    public boolean updateImage(Long postId, byte[] image) {
+        return postRepository.updateImage(postId, image);
     }
 
     @Transactional(readOnly = true)
-    public Optional<byte[]> getImage(Long id) {
-        return postRepository.findImageById(id);
+    public Optional<byte[]> getImage(Long postId) {
+        return postRepository.findImageById(postId);
     }
 
     @Transactional(readOnly = true)
-    public boolean existsPost(Long id) {
-        return postRepository.existsById(id);
+    public boolean existsPost(Long postId) {
+        return postRepository.existsById(postId);
     }
 }

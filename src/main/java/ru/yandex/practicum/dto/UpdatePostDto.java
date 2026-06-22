@@ -8,12 +8,10 @@ import java.util.List;
 
 import static ru.yandex.practicum.dto.PostValidationConstants.*;
 
-public record NewPostDto(
+public record UpdatePostDto (
 
-        /*
-         В задании не сказано, но логично, что нужно ограничить длину заголовка, текста, кол-во и длину тегов
-         В реальности нужно уточнить у проджекта или аналитика, но для примера пока выставил примерные лимиты соцсетей
-         */
+        @NotNull(message = MSG_ID_REQUIRED)
+        Long id,
 
         @NotBlank(message = MSG_TITLE_REQUIRED)
         @Size(max = TITLE_MAX_LENGTH, message = MSG_TITLE_MAX_LENGTH)
@@ -28,10 +26,13 @@ public record NewPostDto(
            1) если теги удалили
            2) если теги не изменяли (поле с тегами не редактировали)
          И на стороне бэка непонятно как определять какой именно из случаев передан.
-         Поэтому, чтобы не допустить такой ситуации, у поста должен быть хотя бы 1 тег.
+         Поэтому, чтобы не допустить такой неоднозначной ситуации, у поста должен быть хотя бы 1 тег.
+
+         А при обновлении убираем ограничение на минимальное количество тегов TAGS_MIN_COUNT
+         И в обоих случаях пустой список тегов [] трактуем как - теги не изменяли (поле с тегами не редактировали).
          */
         @NotNull(message = MSG_TAGS_NOT_NULL)
-        @Size(min = TAGS_MIN_COUNT, max = TAGS_MAX_COUNT, message = MSG_TAGS_MIN_MAX_COUNT)
+        @Size(max = TAGS_MAX_COUNT, message = MSG_TAGS_MIN_MAX_COUNT)
         List<@Size(max = TAG_MAX_LENGTH, message = MSG_TAG_MAX_LENGTH) String> tags
 
 ) implements PostData {}

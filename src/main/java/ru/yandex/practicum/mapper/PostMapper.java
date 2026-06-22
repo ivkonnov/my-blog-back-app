@@ -2,18 +2,18 @@ package ru.yandex.practicum.mapper;
 
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.domain.Post;
-import ru.yandex.practicum.dto.NewPostDto;
+import ru.yandex.practicum.dto.PostData;
 import ru.yandex.practicum.dto.PostDto;
 
 @Component
 public class PostMapper {
 
-    public Post toPost(NewPostDto newPostDto) {
-        return new Post(
-                newPostDto.title(),
-                newPostDto.text(),
-                newPostDto.tags()
-        );
+    public Post toPost(PostData postData) {
+        return Post.builder()
+                .title(postData.title())
+                .text(postData.text())
+                .tags(postData.tags())
+                .build();
     }
 
     public PostDto toPostDto(Post post) {

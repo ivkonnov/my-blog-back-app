@@ -357,6 +357,23 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     }
 
     @Nested
+    class Likes {
+        @BeforeEach
+        void setUp(ApplicationContext context) {
+            // генерируем 1 пост
+            setUpAddPosts(context, 1);
+        }
+
+        @Test
+        void addLike() {
+            for (int i = 1; i < 10; i++) {
+                Long likes = postRepository.addLike(1L);
+                assertEquals(i, likes);
+            }
+        }
+    }
+
+    @Nested
     class UpdateAndGetImage {
         @BeforeEach
         void setUp(ApplicationContext context) {

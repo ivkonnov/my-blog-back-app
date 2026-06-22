@@ -97,8 +97,13 @@ public class PostService {
     @Transactional
     public PostDto updatePost(Long postId, UpdatePostDto updatePostDto) {
         Post updatePost = postMapper.toPost(updatePostDto);
-        Post updatePostFromDb = postRepository.update(postId, updatePost);
-        return postMapper.toPostDto(updatePostFromDb);
+        Post updatedPostFromDb = postRepository.update(postId, updatePost);
+        return postMapper.toPostDto(updatedPostFromDb);
+    }
+
+    @Transactional
+    public Long addLike(Long postId) {
+        return postRepository.addLike(postId);
     }
 
     @Transactional

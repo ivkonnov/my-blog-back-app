@@ -54,7 +54,7 @@ public class PostController {
         return postService.getPost(postId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> {
-                    log.warn("Post with id {} not found", postId);
+                    log.warn("Post with id {} for get not found", postId);
                     return ResponseEntity.notFound().build();
                 });
     }
@@ -67,13 +67,23 @@ public class PostController {
             return ResponseEntity.badRequest().build();
         }
         if (!postService.existsPost(postId)) {
-            log.warn("Post with id {} not found", postId);
+            log.warn("Post with id {} for update not found", postId);
             return ResponseEntity.notFound().build();
         }
 
         log.info("Update post with id {}", postId);
         PostDto postDto = postService.updatePost(postId, updatePostDto);
         return ResponseEntity.ok(postDto);
+    }
+
+    @PostMapping(value = "/{postId}/likes")
+    public ResponseEntity<Long> addLike(@PathVariable("postId") Long postId) {
+        if (!postService.existsPost(postId)) {
+            log.warn("Post with id {} for add like not found", postId);
+            return ResponseEntity.notFound().build();
+        }
+        Long updatedLikes = postService.addLike(postId);
+        return ResponseEntity.ok(updatedLikes);
     }
 
     // Обновление картинки поста
@@ -117,4 +127,5 @@ public class PostController {
                 return ResponseEntity.notFound().build();
             });
     }
+
 }

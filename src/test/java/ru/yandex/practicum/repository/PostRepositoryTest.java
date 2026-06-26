@@ -10,7 +10,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.domain.Post;
@@ -21,8 +20,8 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringJUnitConfig(JdbcNativePostRepository.class)
-public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
+@SpringJUnitConfig(PostRepositoryImpl.class)
+public class PostRepositoryTest extends AbstractPostgresMvcTest {
 
     @Autowired
     PostRepository postRepository;
@@ -30,9 +29,9 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     @Nested
     class SearchPosts {
         @BeforeAll
-        static void setUp(ApplicationContext context) {
-            // генерируем 19 постов
-            setUpAddPosts(context, 19);
+        static void setUp() {
+            // генерируем и добавляем в базу данных 19 постов
+            setUpGenAddPosts(19);
         }
 
         @ParameterizedTest
@@ -89,7 +88,7 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
 
         private static Stream<Arguments> provideSearchPostsByTags() {
             return Stream.of(
-                    // 1-ая страница c 5-ю постами с тегом "заметка"
+                    // 1-ая страница с 5-ю постами с тегом "заметка"
                     Arguments.of(List.of("заметка"), 5, 0, 5),
                     // 2-ая страница с оставшимися 4-мя постами с тегом "заметка"
                     Arguments.of(List.of("заметка"), 5, 5, 4),
@@ -130,20 +129,20 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
 
         private static Stream<Arguments> provideSearchPostsByTitleAndTags() {
             return Stream.of(
-                    // 1-ая страница c 5-ю постами с названием содержащим "назван" и тегом "заметка"
+                    // 1-ая страница с 5-ю постами с названием содержащим "назван" и тегом "заметка"
                     Arguments.of("назван", List.of("заметка"), 5, 0, 5),
                     // 2-ая страница с оставшимися 4-мя постами с названием содержащим "назван" и тегом "заметка"
                     Arguments.of("назван", List.of("заметка"), 5, 5, 4),
 
-                    // 1-ая страница c 5-ю постами с названием содержащим "назван" и тегом "лонгрид"
+                    // 1-ая страница с 5-ю постами с названием содержащим "назван" и тегом "лонгрид"
                     Arguments.of("назван", List.of("лонгрид"), 5, 0, 5),
                     // 2-ая страница с оставшимся 1-м постом с названием содержащим "назван" и тегом "лонгрид"
                     Arguments.of("назван", List.of("лонгрид"), 5, 5, 1),
 
-                    // 1-ая страница с 3-мя постами c названием содержащим "назван" и тегами "заметка" и "лонгрид"
+                    // 1-ая страница с 3-мя постами с названием содержащим "назван" и тегами "заметка" и "лонгрид"
                     Arguments.of("назван", List.of("заметка", "лонгрид"), 5, 0, 3),
 
-                    // 1-ая страница с 4-мя постами c названием содержащим "публикац" и тегом "заметка"
+                    // 1-ая страница с 4-мя постами с названием содержащим "публикац" и тегом "заметка"
                     Arguments.of("публикац", List.of("заметка"), 5, 0, 4),
 
                     // 1-ая страница с 1-м постом с названием содержащим "публикац" и тегом "лонгрид"
@@ -264,9 +263,9 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     @Nested
     class GetPost {
         @BeforeAll
-        static void setUp(ApplicationContext context) {
-            // генерируем 2 поста
-            setUpAddPosts(context, 2);
+        static void setUp() {
+            // генерируем и добавляем в базу данных 2 поста
+            setUpGenAddPosts(2);
         }
 
         @ParameterizedTest
@@ -312,9 +311,9 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     @Nested
     class UpdatePost {
         @BeforeEach
-        void setUp(ApplicationContext context) {
-            // генерируем 2 поста
-            setUpAddPosts(context, 2);
+        void setUp() {
+            // генерируем и добавляем в базу данных 2 поста
+            setUpGenAddPosts(2);
         }
 
         @ParameterizedTest
@@ -359,9 +358,9 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     @Nested
     class Likes {
         @BeforeEach
-        void setUp(ApplicationContext context) {
-            // генерируем 1 пост
-            setUpAddPosts(context, 1);
+        void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
         }
 
         @Test
@@ -376,9 +375,9 @@ public class JdbcNativePostRepositoryTest extends AbstractPostgresMvcTest {
     @Nested
     class UpdateAndGetImage {
         @BeforeEach
-        void setUp(ApplicationContext context) {
-            // генерируем 1 пост
-            setUpAddPosts(context, 1);
+        void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
         }
 
         @Test

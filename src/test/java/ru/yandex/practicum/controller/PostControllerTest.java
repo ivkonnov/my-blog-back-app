@@ -10,7 +10,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -22,6 +21,7 @@ import org.springframework.web.context.WebApplicationContext;
 import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.configuration.WebConfiguration;
 import ru.yandex.practicum.domain.Post;
+import ru.yandex.practicum.domain.Comment;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -32,7 +32,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static ru.yandex.practicum.dto.PostValidationConstants.*;
+import static ru.yandex.practicum.validation.PostValidationLimits.*;
+import static ru.yandex.practicum.exception.ErrorMessages.*;
 
 @SpringJUnitConfig(WebConfiguration.class)
 @WebAppConfiguration
@@ -53,9 +54,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
     @Nested
     class SearchPosts {
         @BeforeAll
-        static void setUp(ApplicationContext context) {
-            // генерируем 19 постов
-            setUpAddPosts(context, 19);
+        static void setUp() {
+            // генерируем и добавляем в базу данных 19 постов
+            setUpGenAddPosts(19);
         }
 
         @ParameterizedTest
@@ -170,10 +171,10 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
 
         @Test
         void addPost_notValidMaxLength() throws Exception {
-            List<String> tags = List.of("a".repeat(26));
+            List<String> tags = List.of("a".repeat(TAG_MAX_LENGTH + 1));
             Post newNotValidPost = Post.builder()
-                    .title("a".repeat(129))
-                    .text("a".repeat(4097))
+                    .title("a".repeat(TITLE_MAX_LENGTH + 1))
+                    .text("a".repeat(TEXT_MAX_LENGTH + 1))
                     .tags(tags)
                     .build();
 
@@ -193,9 +194,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
     @Nested
     class GetPost {
         @BeforeAll
-        static void setUp(ApplicationContext context) {
-            // генерируем 2 поста
-            setUpAddPosts(context, 2);
+        static void setUp() {
+            // генерируем и добавляем в базу данных 2 поста
+            setUpGenAddPosts(2);
         }
 
         @ParameterizedTest
@@ -226,16 +227,18 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         @Test
         void getPost_postNotFound() throws Exception {
             mockMvc.perform(get("/api/posts/{postId}", 999L))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
         }
     }
 
     @Nested
     class UpdatePost {
         @BeforeEach
-        void setUp(ApplicationContext context) {
-            // генерируем 2 поста
-            setUpAddPosts(context, 2);
+        void setUp() {
+            // генерируем и добавляем в базу данных 2 поста
+            setUpGenAddPosts(2);
         }
 
         @ParameterizedTest
@@ -295,7 +298,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
             mockMvc.perform(put("/api/posts/{postId}", 999L)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(updatePostJson))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
         }
 
         @Test
@@ -328,7 +333,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                             .content(updateNotValidPostJson))
                     .andExpect(status().isBadRequest())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.id").value(MSG_ID_REQUIRED))
+                    .andExpect(jsonPath("$.id").value(MSG_POST_ID_REQUIRED))
                     .andExpect(jsonPath("$.title").value(MSG_TITLE_REQUIRED))
                     .andExpect(jsonPath("$.text").value(MSG_TEXT_REQUIRED))
                     .andExpect(jsonPath("$.tags").value(expectedMessageTagsNotValid));
@@ -347,11 +352,11 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
 
         @Test
         void updatePost_notValidMaxLength() throws Exception {
-            List<String> tags = List.of("a".repeat(26));
+            List<String> tags = List.of("a".repeat(TAG_MAX_LENGTH + 1));
             Post updateNotValidPost = Post.builder()
                     .id(1L)
-                    .title("a".repeat(129))
-                    .text("a".repeat(4097))
+                    .title("a".repeat(TITLE_MAX_LENGTH + 1))
+                    .text("a".repeat(TEXT_MAX_LENGTH + 1))
                     .tags(tags)
                     .build();
 
@@ -371,9 +376,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
     @Nested
     class Likes {
         @BeforeEach
-        void setUp(ApplicationContext context) {
-            // генерируем 1 пост
-            setUpAddPosts(context, 1);
+        void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
         }
 
         @Test
@@ -390,7 +395,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         void like_postNotFound() throws Exception {
             for (int i = 1; i < 10; i++) {
                 mockMvc.perform(post("/api/posts/{postId}/likes", 999L))
-                        .andExpect(status().isNotFound());
+                        .andExpect(status().isNotFound())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
             }
         }
     }
@@ -398,9 +405,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
     @Nested
     class UpdateAndGetImage {
         @BeforeEach
-        void setUp(ApplicationContext context) {
-            // генерируем 1 пост
-            setUpAddPosts(context, 1);
+        void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
         }
 
         @Test
@@ -449,19 +456,132 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                                 return request;
                             }))
                     .andExpect(status().isNotFound())
-                    .andExpect(content().string("Post not found"));
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
         }
 
         @Test
         void getImage_postHasNoImage_404() throws Exception {
             mockMvc.perform(get("/api/posts/{postId}/image", 1L))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_IMAGE_NOT_FOUND));
         }
 
         @Test
         void getImage_postNotFound_404() throws Exception {
             mockMvc.perform(get("/api/posts/{postId}/image", 999L))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
+        }
+    }
+
+    @Nested
+    class AddComments {
+        @BeforeEach
+        void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
+        }
+
+        @Test
+        void addComments_success() throws Exception {
+            for (int i = 1; i < 10; i++) {
+                Comment newComment = Comment.builder().text("Комментарий " + i).postId(1L).build();
+                String newCommentJson = objectMapper.writeValueAsString(newComment);
+
+                mockMvc.perform(post("/api/posts/{postId}/comments", 1L)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(newCommentJson))
+                        .andExpect(status().isCreated())
+                        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                        .andExpect(jsonPath("$.id").exists())
+                        .andExpect(jsonPath("$.text").value(newComment.getText()))
+                        .andExpect(jsonPath("$.postId").value(newComment.getPostId()));
+
+                // проверяем, что количество комментариев увеличилось на 1
+                mockMvc.perform(get("/api/posts/{postId}", 1L))
+                        .andExpect(jsonPath("$.commentsCount").value(i));
+            }
+        }
+
+        @Test
+        void addComment_postNotFound() throws Exception {
+            Comment newComment = Comment.builder().text("Комментарий").postId(1L).build();
+            String newCommentJson = objectMapper.writeValueAsString(newComment);
+
+            mockMvc.perform(post("/api/posts/{postId}/comments", 999L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(newCommentJson))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
+        }
+
+        @Test
+        void addComment_notValid() throws Exception {
+            Comment newComment = Comment.builder().text("").build();
+            String newCommentJson = objectMapper.writeValueAsString(newComment);
+
+            mockMvc.perform(post("/api/posts/{postId}/comments", 1L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(newCommentJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.text").value(MSG_COMMENT_REQUIRED))
+                    .andExpect(jsonPath("$.postId").value(MSG_POST_ID_REQUIRED));
+        }
+
+        @Test
+        void addComment_notValidMaxLength() throws Exception {
+            Comment newComment = Comment.builder().text("a".repeat(COMMENT_MAX_LENGTH + 1)).postId(1L).build();
+            String newCommentJson = objectMapper.writeValueAsString(newComment);
+
+            mockMvc.perform(post("/api/posts/{postId}/comments", 1L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(newCommentJson))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.text").value(MSG_COMMENT_MAX_LENGTH));
+        }
+    }
+
+    @Nested
+    class getComments {
+        @BeforeAll
+        static void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
+            // генерируем и добавляем в базу данных 10 комментариев для поста c id = 1
+            setUpGenAddComments(1L, 10);
+        }
+
+        @ParameterizedTest
+        @CsvSource({"1, 1, Комментарий 1"})
+        void getComment_success(Long postId, Long commentId, String commentText) throws Exception {
+            mockMvc.perform(get("/api/posts/{postId}/comments/{commentId}", postId, commentId))
+                            .andExpect(status().isOk())
+                            .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(commentId))
+                    .andExpect(jsonPath("$.text").value(commentText))
+                    .andExpect(jsonPath("$.postId").value(postId));
+        }
+
+        @Test
+        void getComment_postNotFound() throws Exception {
+            mockMvc.perform(get("/api/posts/{postId}/comments/{commentId}", 999L, 1L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_POST_NOT_FOUND));
+        }
+
+        @Test
+        void getComment_commentNotFound() throws Exception {
+            mockMvc.perform(get("/api/posts/{postId}/comments/{commentId}", 1L, 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_COMMENT_NOT_FOUND));
         }
     }
 

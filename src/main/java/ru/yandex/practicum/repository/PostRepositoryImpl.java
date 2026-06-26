@@ -14,11 +14,11 @@ import java.util.*;
 
 @Slf4j
 @Repository
-public class JdbcNativePostRepository implements PostRepository {
+public class PostRepositoryImpl implements PostRepository {
 
     private final NamedParameterJdbcTemplate nameParamJdbcTemplate;
 
-    public JdbcNativePostRepository(NamedParameterJdbcTemplate nameParamJdbcTemplate) {
+    public PostRepositoryImpl(NamedParameterJdbcTemplate nameParamJdbcTemplate) {
         this.nameParamJdbcTemplate = nameParamJdbcTemplate;
     }
 
@@ -228,10 +228,10 @@ public class JdbcNativePostRepository implements PostRepository {
 
     @Override
     public Optional<Post> findById(Long postId) {
-        try {
-            MapSqlParameterSource params = new MapSqlParameterSource()
-                    .addValue("postId", postId);
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("postId", postId);
 
+        try {
             // Получаем пост
             Post post = nameParamJdbcTemplate.queryForObject(
                 """
@@ -253,9 +253,8 @@ public class JdbcNativePostRepository implements PostRepository {
                             .commentsCount(resultSet.getLong("comments_count"))
                             .build()
             );
-            return Optional.of(post);
+            return Optional.ofNullable(post);
         } catch (EmptyResultDataAccessException e) {
-            log.warn("Post not found id: {}", postId);
             return Optional.empty();
         }
     }
@@ -500,6 +499,18 @@ public class JdbcNativePostRepository implements PostRepository {
                     return Optional.empty();
                 }
         );
+    }
+
+    @Override
+    public boolean incrementCommentsCount(Long postId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("postId", postId);
+
+        int updated = nameParamJdbcTemplate.update(
+                "UPDATE posts SET comments_count = comments_count + 1 WHERE id = :postId",
+                params
+        );
+        return updated > 0;
     }
 
     @Override

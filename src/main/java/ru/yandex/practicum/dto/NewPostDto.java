@@ -6,13 +6,15 @@ import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
-import static ru.yandex.practicum.dto.PostValidationConstants.*;
+import static ru.yandex.practicum.exception.ErrorMessages.*;
+import static ru.yandex.practicum.validation.PostValidationLimits.*;
 
 public record NewPostDto(
 
         /*
-         В задании не сказано, но логично, что нужно ограничить длину заголовка, текста, кол-во и длину тегов
-         В реальности нужно уточнить у проджекта или аналитика, но для примера пока выставил примерные лимиты соцсетей
+         В задании не сказано, но логично, что нужно ограничить длину заголовка, текста, кол-во и длину тегов,
+         чтобы и в схеме БД указать ограничения и чтобы не было проблем, если вдруг передадутся слишком длинные значения.
+         В реальности же нужно уточнить у проджекта или аналитика, но для примера пока выставил примерные лимиты соцсетей
          */
 
         @NotBlank(message = MSG_TITLE_REQUIRED)

@@ -35,5 +35,7 @@ public interface PostRepository {
 
     Optional<byte[]> findImageById(Long postId);
 
+    boolean incrementCommentsCount(Long postId);
+
     boolean existsById(Long id);
 }

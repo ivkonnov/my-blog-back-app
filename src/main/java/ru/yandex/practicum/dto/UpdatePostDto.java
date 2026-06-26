@@ -6,11 +6,12 @@ import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
-import static ru.yandex.practicum.dto.PostValidationConstants.*;
+import static ru.yandex.practicum.exception.ErrorMessages.*;
+import static ru.yandex.practicum.validation.PostValidationLimits.*;
 
 public record UpdatePostDto (
 
-        @NotNull(message = MSG_ID_REQUIRED)
+        @NotNull(message = MSG_POST_ID_REQUIRED)
         Long id,
 
         @NotBlank(message = MSG_TITLE_REQUIRED)

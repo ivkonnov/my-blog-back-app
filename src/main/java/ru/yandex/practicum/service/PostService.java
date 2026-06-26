@@ -1,23 +1,21 @@
 package ru.yandex.practicum.service;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.domain.Post;
-import ru.yandex.practicum.dto.NewPostDto;
-import ru.yandex.practicum.dto.PagePostsDto;
-import ru.yandex.practicum.dto.PostDto;
-import ru.yandex.practicum.dto.UpdatePostDto;
+import ru.yandex.practicum.dto.*;
+import ru.yandex.practicum.exception.ImagePostNotFoundException;
+import ru.yandex.practicum.exception.PostNotFoundException;
 import ru.yandex.practicum.mapper.PostMapper;
 import ru.yandex.practicum.repository.PostRepository;
 
 import java.util.*;
 
-@Slf4j
 @Service
 public class PostService {
 
     private final PostRepository postRepository;
+
     private final PostMapper postMapper;
 
     public PostService(PostRepository postRepository, PostMapper postMapper) {
@@ -89,13 +87,17 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<PostDto> getPost(Long postId) {
+    public PostDto getPost(Long postId) {
         return postRepository.findById(postId)
-                .map(postMapper::toPostDto);
+                .map(postMapper::toPostDto)
+                .orElseThrow(() -> new PostNotFoundException(postId));
     }
 
     @Transactional
     public PostDto updatePost(Long postId, UpdatePostDto updatePostDto) {
+        if (!existsById(postId))
+            throw new PostNotFoundException(postId);
+
         Post updatePost = postMapper.toPost(updatePostDto);
         Post updatedPostFromDb = postRepository.update(postId, updatePost);
         return postMapper.toPostDto(updatedPostFromDb);
@@ -103,21 +105,36 @@ public class PostService {
 
     @Transactional
     public Long addLike(Long postId) {
+        if (!existsById(postId))
+            throw new PostNotFoundException(postId);
+
         return postRepository.addLike(postId);
     }
 
     @Transactional
     public boolean updateImage(Long postId, byte[] image) {
+        if (!existsById(postId))
+            throw new PostNotFoundException(postId);
+
         return postRepository.updateImage(postId, image);
     }
 
     @Transactional(readOnly = true)
-    public Optional<byte[]> getImage(Long postId) {
-        return postRepository.findImageById(postId);
+    public byte[] getImage(Long postId) {
+        if (!existsById(postId))
+            throw new PostNotFoundException(postId);
+
+        return postRepository.findImageById(postId)
+                .orElseThrow(() -> new ImagePostNotFoundException(postId));
     }
 
     @Transactional(readOnly = true)
-    public boolean existsPost(Long postId) {
+    public boolean existsById(Long postId) {
         return postRepository.existsById(postId);
     }
+
+    public boolean incrementCommentsCount(Long postId) {
+        return postRepository.incrementCommentsCount(postId);
+    }
+
 }

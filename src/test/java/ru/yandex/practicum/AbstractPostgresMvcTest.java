@@ -1,6 +1,7 @@
 package ru.yandex.practicum;
 
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.BeforeAll;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -23,13 +24,20 @@ import java.util.*;
 public abstract class AbstractPostgresMvcTest {
 
     @Container
-    static PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>("postgres:18");
+    private static final PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>("postgres:18");
+
+    protected static NamedParameterJdbcTemplate nameParamJdbcTemplate;
 
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);
         registry.add("spring.datasource.username", postgresContainer::getUsername);
         registry.add("spring.datasource.password", postgresContainer::getPassword);
+    }
+
+    @BeforeAll
+    static void setUp(ApplicationContext context) {
+        nameParamJdbcTemplate = context.getBean(NamedParameterJdbcTemplate.class);
     }
 
     /*
@@ -65,12 +73,10 @@ public abstract class AbstractPostgresMvcTest {
             - 3 поста c тегами "пост_i" и "лонгрид"
             - 2 поста с тегами "пост_i", "заметка" и "лонгрид"
     */
-    protected static void setUpAddPosts(ApplicationContext context, int countPosts) {
-        NamedParameterJdbcTemplate nameParamJdbcTemplate = context.getBean(NamedParameterJdbcTemplate.class);
-
+    protected static void setUpGenAddPosts(int countPosts) {
         // Очистка таблиц и восстановление первичных ключей перед каждым тестом
         nameParamJdbcTemplate.update(
-                "TRUNCATE TABLE posts_tags, posts, tags RESTART IDENTITY",
+                "TRUNCATE TABLE posts_tags, posts, tags RESTART IDENTITY CASCADE",
                 new MapSqlParameterSource()
         );
 
@@ -161,6 +167,28 @@ public abstract class AbstractPostgresMvcTest {
             log.info("Generated post for tests title: {} text: {} tags: {}", post.getTitle(), post.getText(), post.getTags());
         }
         return posts;
+    }
+
+    protected static void setUpGenAddComments(Long postId, int countComments) {
+        nameParamJdbcTemplate.update(
+                "TRUNCATE TABLE comments RESTART IDENTITY",
+                new MapSqlParameterSource()
+        );
+
+        List<MapSqlParameterSource> batchCommentsParams = new ArrayList<>();
+        for (int i = 1; i <= countComments; i++) {
+            MapSqlParameterSource commentParams = new MapSqlParameterSource()
+                    .addValue("text", "Комментарий " + i)
+                    .addValue("postId", postId);
+
+            batchCommentsParams.add(commentParams);
+        }
+
+        // Сохраняем теги
+        nameParamJdbcTemplate.batchUpdate(
+                "INSERT INTO comments (text, post_id) VALUES (:text, :postId)",
+                batchCommentsParams.toArray(MapSqlParameterSource[]::new)
+        );
     }
 
 }

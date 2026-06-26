@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS posts_tags (
     FOREIGN KEY (tag_id) REFERENCES tags (id)
 );
 
+-- Таблица с комментариями
+CREATE TABLE IF NOT EXISTS comments (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    text VARCHAR(460) NOT NULL,
+    post_id BIGINT NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_posts_title ON posts(title);
 CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
 CREATE INDEX IF NOT EXISTS idx_posts_tags_post_id ON posts_tags(post_id);

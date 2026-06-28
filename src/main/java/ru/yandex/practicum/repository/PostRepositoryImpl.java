@@ -34,107 +34,68 @@ public class PostRepositoryImpl implements PostRepository {
                 params,
                 Long.class
         );
-        log.info("Post saved postId: {} title: {}", postId, post.getTitle());
+        log.info("New post saved postId: {} title: {}", postId, post.getTitle());
 
-        // Вставка тегов
-        List<Long> tagIds = saveTags(post.getTags());
-        // Сохранение связи пост-теги
-        savePostTagLinks(postId, tagIds);
+        List<String> tags = post.getTags();
+        if (!tags.isEmpty()) {
+            // Вставка тегов
+            List<Long> tagIds = saveTags(tags);
+            log.info("Tags saved with tagIds {} for new post with id {}", tagIds, postId);
 
+            // Сохранение связи пост-теги
+            savePostTagLinks(postId, tagIds);
+            log.info("Post-tag links saved for new post with id: {} and new tags with tagIds: {}", postId, tagIds);
+        }
         return postId;
     }
 
     @Override
     public Post update(Long postId, Post updatePost) {
-        String updateTitle = updatePost.getTitle();
-        String updateText = updatePost.getText();
+        // Обновление названия и текста поста
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("updateTitle", updatePost.getTitle())
+                .addValue("updateText", updatePost.getText())
+                .addValue("postId", postId);
 
-        // Получение текущего поста
-        Post currentPost = findById(postId).orElseThrow();
-        String currentTitle = currentPost.getTitle();
-        String currentText = currentPost.getText();
+        nameParamJdbcTemplate.update(
+                "UPDATE posts SET title = :updateTitle, text = :updateText WHERE id = :postId",
+                params
+        );
+        log.info("Updated title and text for post with id {}", postId);
 
-        // Обновление названия поста, если оно было изменено
-        if (!currentTitle.equals(updateTitle)) {
-            log.info("Update postId{} to new title {}", postId, updateTitle);
-            updateTitle(postId, updateTitle);
-        }
-        // Обновление контента поста, если он был изменен
-        if (!currentText.equals(updateText)) {
-            log.info("Update postId {} to new text {}", postId, updateText);
-            updateText(postId, updateText);
-        }
-
-        List<String> currentTags = currentPost.getTags();
+        // Обновление тегов
         List<String> updateTags = updatePost.getTags();
-
-        // Сравнение тегов не учитывая дубликаты и порядок
-        boolean tagsEqual = new HashSet<>(currentTags).equals(new HashSet<>(updateTags));
-
-        /*
-         Особенность фронта - при обновлении поста передаётся пустой список тегов [] в 2-х случаях:
-           1) если теги удалили
-           2) если теги НЕ изменяли (поле с тегами НЕ редактировали)
-         В обоих случаях пустой список тегов [] трактуем как - теги не изменяли (поле с тегами не редактировали).
-
-         А если теги НЕ пустые, то это значит:
-           1) что теги изменили
-           2) либо поле с тегами редактировали, но теги в итоге оставили без изменений
-         */
-        if (!updateTags.isEmpty() && !tagsEqual) {
-            // Обновление тегов
-            log.info("Update postId {} to new tags {}", postId, updateTags);
-
+        if (!updateTags.isEmpty()) {
             // Получение id текущих тегов
             List<Long> currentTagIds = getTagIds(postId);
-            log.info("Current tagIds: {}", currentTagIds);
+            log.info("Current tags with tagIds {} before update tags for post with id {}", currentTagIds, postId);
 
             // Вставка новых тегов
-            List<Long> updateTagIds = saveTags(updateTags);
-            log.info("Update tagIds: {}", updateTagIds);
+            List<Long> updatedTagIds = saveTags(updateTags);
+            log.info("Updated tags with tagIds {} for post with id {}", updatedTagIds, postId);
 
             // Сохраняем новые связи поста с новыми тегами
-            savePostTagLinks(postId, updateTagIds);
+            savePostTagLinks(postId, updatedTagIds);
+            log.info("Post-tag links updated for post with id {} and tags with tagIds {}", postId, updatedTagIds);
 
-            // Определяем теги, которые были удалены из поста
-            List<Long> deleteOldTagIds = currentTagIds.stream()
-                    .filter(currentTagId -> !updateTagIds.contains(currentTagId))
+
+            // Определяем теги, которые были удалены и должны быть отвязаны от поста
+            List<Long> oldTagIdsToUnlink = currentTagIds.stream()
+                    .filter(currentTagId -> !updatedTagIds.contains(currentTagId))
                     .toList();
 
-            if (!deleteOldTagIds.isEmpty()) {
-                // Удаляем связи поста с удаленными тегами
-                deletePostTagLinks(postId, deleteOldTagIds);
-                log.info("Post-tag links deleted for postId: {} tagIds: {}", postId, deleteOldTagIds);
+            if (!oldTagIdsToUnlink.isEmpty()) {
+                // Отвязываем удаленные теги от поста
+                unlinkPostTags(postId, oldTagIdsToUnlink);
+                log.info("Post-tag unlinked old tags with tagIds: {} for post with id: {}", oldTagIdsToUnlink, postId);
 
-                // Удаляем отвязанные от поста теги, в случае если связь тега с постом была удалена и тег не привязан к другим постам
-                deleteUnlinkedTags(deleteOldTagIds);
-                log.info("Unlinked tags deleted tagIds: {}", deleteOldTagIds);
+                // Удаляем неиспользуемые теги (отвязанные от текущего поста и не привязанные к другим постам)
+                // Это уже не относится к методу обновления поста и в целом можно запускать по шедулеру в другом месте, чтобы не копился мусор
+                deleteUnusedTags(oldTagIdsToUnlink);
+                log.info("Unused tags deleted with tagIds: {}", oldTagIdsToUnlink);
             }
         }
-
         return findById(postId).orElseThrow();
-    }
-
-    private void updateTitle(Long postId, String updateTitle) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("updateTitle", updateTitle)
-                .addValue("postId", postId);
-
-        nameParamJdbcTemplate.update(
-                "UPDATE posts SET title = :updateTitle WHERE id = :postId",
-                params
-        );
-    }
-
-    private void updateText(Long postId, String updateText) {
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("updateText", updateText)
-                .addValue("postId", postId);
-
-        nameParamJdbcTemplate.update(
-                "UPDATE posts SET text = :updateText WHERE id = :postId",
-                params
-        );
     }
 
     private List<Long> saveTags(List<String> tags) {
@@ -151,18 +112,15 @@ public class PostRepositoryImpl implements PostRepository {
         MapSqlParameterSource tagsParams = new MapSqlParameterSource()
                 .addValue("tags", tags);
 
-        // Получаем id тегов
-        List<Long> tagIds = nameParamJdbcTemplate.queryForList(
+        // Возвращаем все id новых тегов
+        return nameParamJdbcTemplate.queryForList(
                 "SELECT id FROM tags WHERE name IN (:tags)",
                 tagsParams,
                 Long.class
         );
-        log.info("Tags saved tagIds: {}", tagIds);
-
-        return tagIds;
     }
 
-    private void deletePostTagLinks(Long postId, List<Long> tagIds) {
+    private void unlinkPostTags(Long postId, List<Long> tagIds) {
         MapSqlParameterSource tagIdsParams = new MapSqlParameterSource()
                 .addValue("postId", postId)
                 .addValue("tagIds", tagIds);
@@ -181,12 +139,11 @@ public class PostRepositoryImpl implements PostRepository {
                         .addValue("tagId", tagId))
                 .toList();
 
-       // Сохраняем связи пост-теги
+        // Сохраняем связи пост-теги
         nameParamJdbcTemplate.batchUpdate(
                 "INSERT INTO posts_tags (post_id, tag_id) VALUES (:postId, :tagId) ON CONFLICT DO NOTHING",
                 batchPostIdTagIdParams.toArray(MapSqlParameterSource[]::new)
         );
-        log.info("Post-tag links saved for postId: {} tagIds: {}", postId, tagIds);
     }
 
     private List<Long> getTagIds(Long postId) {
@@ -200,7 +157,7 @@ public class PostRepositoryImpl implements PostRepository {
         );
     }
 
-    private void deleteUnlinkedTags(List<Long> tagIds) {
+    private void deleteUnusedTags(List<Long> tagIds) {
         MapSqlParameterSource unlinkedTagIdsParams = new MapSqlParameterSource("tagIds", tagIds);
         nameParamJdbcTemplate.update(
                 """

@@ -98,9 +98,9 @@ public class PostService {
         if (!existsById(postId))
             throw new PostNotFoundException(postId);
 
-        Post updatePost = postMapper.toPost(updatePostDto);
-        Post updatedPostFromDb = postRepository.update(postId, updatePost);
-        return postMapper.toPostDto(updatedPostFromDb);
+        Post post = postMapper.toPost(updatePostDto);
+        Post updatedPost = postRepository.update(postId, post);
+        return postMapper.toPostDto(updatedPost);
     }
 
     @Transactional

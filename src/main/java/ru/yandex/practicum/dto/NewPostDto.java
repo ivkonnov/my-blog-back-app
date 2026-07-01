@@ -11,12 +11,6 @@ import static ru.yandex.practicum.validation.PostValidationLimits.*;
 
 public record NewPostDto(
 
-        /*
-         В задании не сказано, но логично, что нужно ограничить длину заголовка, текста, кол-во и длину тегов,
-         чтобы и в схеме БД указать ограничения и чтобы не было проблем, если вдруг передадутся слишком длинные значения.
-         В реальности же нужно уточнить у проджекта или аналитика, но для примера пока выставил примерные лимиты соцсетей
-         */
-
         @NotBlank(message = MSG_TITLE_REQUIRED)
         @Size(max = TITLE_MAX_LENGTH, message = MSG_TITLE_MAX_LENGTH)
         String title,
@@ -36,4 +30,4 @@ public record NewPostDto(
         @Size(min = TAGS_MIN_COUNT, max = TAGS_MAX_COUNT, message = MSG_TAGS_MIN_MAX_COUNT)
         List<@Size(max = TAG_MAX_LENGTH, message = MSG_TAG_MAX_LENGTH) String> tags
 
-) implements PostData {}
+) {}

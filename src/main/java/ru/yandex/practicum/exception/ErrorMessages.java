@@ -26,5 +26,6 @@ public class ErrorMessages {
     public static final String MSG_IMAGE_NOT_FOUND = "Изображение не найдено";
 
     public static final String MSG_COMMENT_COUNT_UPDATE_ERROR = "Не удалось обновить счётчик комментариев для поста";
+    public static final String MSG_COMMENT_ID_REQUIRED = "id комментария обязателен";
 
 }

@@ -9,7 +9,7 @@ import java.util.List;
 import static ru.yandex.practicum.exception.ErrorMessages.*;
 import static ru.yandex.practicum.validation.PostValidationLimits.*;
 
-public record UpdatePostDto (
+public record UpdatePostDto(
 
         @NotNull(message = MSG_POST_ID_REQUIRED)
         Long id,
@@ -36,4 +36,4 @@ public record UpdatePostDto (
         @Size(max = TAGS_MAX_COUNT, message = MSG_TAGS_MIN_MAX_COUNT)
         List<@Size(max = TAG_MAX_LENGTH, message = MSG_TAG_MAX_LENGTH) String> tags
 
-) implements PostData {}
+) {}

@@ -34,17 +34,17 @@ public class PostRepositoryImpl implements PostRepository {
                 params,
                 Long.class
         );
-        log.info("New post saved postId: {} title: {}", postId, post.getTitle());
+        log.info("New post saved with id: {} title: {}", postId, post.getTitle());
 
         List<String> tags = post.getTags();
         if (!tags.isEmpty()) {
             // Вставка тегов
             List<Long> tagIds = saveTags(tags);
-            log.info("Tags saved with tagIds {} for new post with id {}", tagIds, postId);
+            log.info("Saved tagIds: {} for new postId: {}", tagIds, postId);
 
             // Сохранение связи пост-теги
             savePostTagLinks(postId, tagIds);
-            log.info("Post-tag links saved for new post with id: {} and new tags with tagIds: {}", postId, tagIds);
+            log.info("Post-tag links saved for new postId: {} and tagIds: {}", postId, tagIds);
         }
         return postId;
     }
@@ -61,22 +61,22 @@ public class PostRepositoryImpl implements PostRepository {
                 "UPDATE posts SET title = :updateTitle, text = :updateText WHERE id = :postId",
                 params
         );
-        log.info("Updated title and text for post with id {}", postId);
+        log.info("Updated title and text for postId: {}", postId);
 
         // Обновление тегов
         List<String> updateTags = updatePost.getTags();
         if (!updateTags.isEmpty()) {
             // Получение id текущих тегов
             List<Long> currentTagIds = getTagIds(postId);
-            log.info("Current tags with tagIds {} before update tags for post with id {}", currentTagIds, postId);
+            log.info("Current tagIds: {} before update tags for postId: {}", currentTagIds, postId);
 
             // Вставка новых тегов
             List<Long> updatedTagIds = saveTags(updateTags);
-            log.info("Updated tags with tagIds {} for post with id {}", updatedTagIds, postId);
+            log.info("Updated tagIds: {} for postId: {}", updatedTagIds, postId);
 
             // Сохраняем новые связи поста с новыми тегами
             savePostTagLinks(postId, updatedTagIds);
-            log.info("Post-tag links updated for post with id {} and tags with tagIds {}", postId, updatedTagIds);
+            log.info("Post-tag links updated for postId: {} and tagIds: {}", postId, updatedTagIds);
 
 
             // Определяем теги, которые были удалены и должны быть отвязаны от поста
@@ -87,12 +87,12 @@ public class PostRepositoryImpl implements PostRepository {
             if (!oldTagIdsToUnlink.isEmpty()) {
                 // Отвязываем удаленные теги от поста
                 unlinkPostTags(postId, oldTagIdsToUnlink);
-                log.info("Post-tag unlinked old tags with tagIds: {} for post with id: {}", oldTagIdsToUnlink, postId);
+                log.info("Post-tag unlinked old tagIds: {} for postId: {}", oldTagIdsToUnlink, postId);
 
                 // Удаляем неиспользуемые теги (отвязанные от текущего поста и не привязанные к другим постам)
                 // Это уже не относится к методу обновления поста и в целом можно запускать по шедулеру в другом месте, чтобы не копился мусор
                 deleteUnusedTags(oldTagIdsToUnlink);
-                log.info("Unused tags deleted with tagIds: {}", oldTagIdsToUnlink);
+                log.info("Deleted unused tagIds: {}", oldTagIdsToUnlink);
             }
         }
         return findById(postId).orElseThrow();

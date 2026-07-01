@@ -28,6 +28,12 @@ public abstract class AbstractPostgresMvcTest {
 
     protected static NamedParameterJdbcTemplate nameParamJdbcTemplate;
 
+    protected static final Long NOT_EXIST_POST_ID = 999L;
+
+    protected static final Long NOT_EXIST_COMMENT_ID = 999L;
+
+    protected static final String COMMENT_TEXT = "Комментарий";
+
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);
@@ -178,7 +184,7 @@ public abstract class AbstractPostgresMvcTest {
         List<MapSqlParameterSource> batchCommentsParams = new ArrayList<>();
         for (int i = 1; i <= countComments; i++) {
             MapSqlParameterSource commentParams = new MapSqlParameterSource()
-                    .addValue("text", "Комментарий " + i)
+                    .addValue("text", COMMENT_TEXT + i)
                     .addValue("postId", postId);
 
             batchCommentsParams.add(commentParams);

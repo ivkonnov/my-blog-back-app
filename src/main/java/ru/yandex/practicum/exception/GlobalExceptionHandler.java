@@ -1,6 +1,7 @@
 package ru.yandex.practicum.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,26 +35,47 @@ public class GlobalExceptionHandler {
                 .body(errors);
     }
 
+    @ExceptionHandler(TypeMismatchException.class)
+    public ResponseEntity<ErrorResponseDto> handleTypeMismatch(TypeMismatchException ex) {
+        String paramName = ex.getPropertyName();
+        String invalidValue = ex.getValue().toString();
+        log.warn("Invalid parameter: {} with value: {}", paramName, invalidValue);
+        String userMessage = String.format("Неверный формат параметра: %s со значением: %s", paramName, invalidValue);
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
+        return ResponseEntity.badRequest().body(errorResponseDto);
+    }
+
+    @ExceptionHandler(IdMismatchException.class)
+    public ResponseEntity<ErrorResponseDto> handleIdMismatch(IdMismatchException ex) {
+        log.warn(ex.getMessage());
+        String userMessage = String.format(
+                "Несовпадение идентификаторов %s: значение из пути - %s, а в теле запроса - %s",
+                ex.getFieldName(), ex.getPathVariableId(), ex.getRequestBodyId()
+        );
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
+        return ResponseEntity.badRequest().body(errorResponseDto);
+    }
+
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponseDto> handleGeneralDataAccess(DataAccessException ex) {
         int statusCode;
-        String message;
+        String userMessage;
 
         if (ex instanceof DuplicateKeyException) {
             statusCode = HttpStatus.CONFLICT.value();
-            message = MSG_DUPLICATE_KEY_EXCEPTION;
+            userMessage = MSG_DUPLICATE_KEY_EXCEPTION;
             log.warn("Duplicate key exception", ex);
         } else if (ex instanceof DataIntegrityViolationException) {
             statusCode = HttpStatus.BAD_REQUEST.value();
-            message = MSG_DATA_INTEGRITY_VIOLATION_EXCEPTION;
+            userMessage = MSG_DATA_INTEGRITY_VIOLATION_EXCEPTION;
             log.warn("Data integrity violation exception", ex);
         } else {
             statusCode = HttpStatus.INTERNAL_SERVER_ERROR.value();
-            message = MSG_INTERNAL_SERVER_ERROR;
+            userMessage = MSG_INTERNAL_SERVER_ERROR;
             log.error("Internal server error: {}", ex.getMessage(), ex);
         }
 
-        ErrorResponseDto errorResponseDto = new ErrorResponseDto(message);
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
         return ResponseEntity
                 .status(statusCode)
                 .body(errorResponseDto);
@@ -61,8 +83,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(PostNotFoundException.class)
     public ResponseEntity<ErrorResponseDto> handlePostNotFound(PostNotFoundException ex) {
-        log.warn("Post not found with postId: {}", ex.getPostId());
-        ErrorResponseDto errorResponseDto = new ErrorResponseDto(ex.getMessage());
+        log.warn(ex.getMessage());
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_POST_NOT_FOUND);
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(errorResponseDto);
@@ -70,26 +92,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(CommentNotFoundException.class)
     public ResponseEntity<ErrorResponseDto> handleCommentNotFound(CommentNotFoundException ex) {
-        log.warn("Comment with id {} for post with id {} not found", ex.getCommentId(), ex.getPostId());
-        ErrorResponseDto errorResponseDto = new ErrorResponseDto(ex.getMessage());
+        log.warn(ex.getMessage());
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_COMMENT_NOT_FOUND);
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(errorResponseDto);
     }
 
-    @ExceptionHandler(ImagePostNotFoundException.class)
-    public ResponseEntity<ErrorResponseDto> handleImagePostNotFound(ImagePostNotFoundException ex) {
-        log.warn("Image for post with id {} not found", ex.getPostId());
-        ErrorResponseDto errorResponseDto = new ErrorResponseDto(ex.getMessage());
+    @ExceptionHandler(ImageNotFoundException.class)
+    public ResponseEntity<ErrorResponseDto> handleImageNotFound(ImageNotFoundException ex) {
+        log.warn(ex.getMessage());
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_IMAGE_NOT_FOUND);
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(errorResponseDto);
     }
 
     @ExceptionHandler(CommentCountUpdateException.class)
-    public ResponseEntity<ErrorResponseDto> handlePostNotFound(CommentCountUpdateException ex) {
-        log.warn("Couldn't update comment counter for post with id {}", ex.getPostId());
-        ErrorResponseDto errorResponseDto = new ErrorResponseDto(ex.getMessage());
+    public ResponseEntity<ErrorResponseDto> handleCommentCountUpdate(CommentCountUpdateException ex) {
+        log.warn(ex.getMessage());
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_COMMENT_COUNT_UPDATE_ERROR);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorResponseDto);
@@ -99,9 +121,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleGenericError(Exception ex) {
         String traceId = UUID.randomUUID().toString();
         log.error("TraceId: {} Unexpected error: {}", traceId, ex.getMessage(), ex);
-        ErrorResponseDto errorResponseDto = new ErrorResponseDto(
-                "Произошла непредвиденная ошибка. TraceId: " + traceId
-        );
+        String userMessage = String.format("Произошла непредвиденная ошибка. TraceId: %s", traceId);
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorResponseDto);

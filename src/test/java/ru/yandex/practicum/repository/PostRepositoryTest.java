@@ -296,15 +296,15 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
         }
 
         @Test
-        void getPost_returnEmpty_whenNotExists() {
-            Optional<Post> postOptional = postRepository.findById(999L);
+        void getPost_returnEmpty_whenPostNotExists() {
+            Optional<Post> postOptional = postRepository.findById(NOT_EXIST_POST_ID);
             assertTrue(postOptional.isEmpty());
         }
 
         @Test
         void existsById_true_and_false() {
             assertTrue(postRepository.existsById(1L));
-            assertFalse(postRepository.existsById(999L));
+            assertFalse(postRepository.existsById(NOT_EXIST_POST_ID));
         }
     }
 
@@ -365,7 +365,7 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
 
         @Test
         void addLike() {
-            for (int i = 1; i < 10; i++) {
+            for (int i = 1; i <= 10; i++) {
                 Long likes = postRepository.addLike(1L);
                 assertEquals(i, likes);
             }
@@ -395,6 +395,30 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
         void getImage_returnEmpty_whenNotSet() {
             Optional<byte[]> postOptional = postRepository.findImageById(1L);
             assertTrue(postOptional.isEmpty());
+        }
+    }
+
+    @Nested
+    class CommentsCount {
+        @BeforeAll
+        static void setUp() {
+            // генерируем и добавляем в базу данных 1 пост
+            setUpGenAddPosts(1);
+        }
+
+        @Test
+        void incrementCommentsCount() {
+            Long postId = 1L;
+            for (int i = 1; i <= 10; i++) {
+                boolean isIncrement = postRepository.incrementCommentsCount(postId);
+                assertTrue(isIncrement);
+
+                Optional<Post> postOptional = postRepository.findById(postId);
+                assertTrue(postOptional.isPresent());
+
+                Post post = postOptional.get();
+                assertEquals(i, post.getCommentsCount());
+            }
         }
     }
 

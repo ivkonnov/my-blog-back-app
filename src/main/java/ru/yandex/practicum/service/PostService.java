@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.domain.Post;
 import ru.yandex.practicum.dto.*;
-import ru.yandex.practicum.exception.ImagePostNotFoundException;
+import ru.yandex.practicum.exception.ImageNotFoundException;
 import ru.yandex.practicum.exception.PostNotFoundException;
 import ru.yandex.practicum.mapper.PostMapper;
 import ru.yandex.practicum.repository.PostRepository;
@@ -125,7 +125,7 @@ public class PostService {
             throw new PostNotFoundException(postId);
 
         return postRepository.findImageById(postId)
-                .orElseThrow(() -> new ImagePostNotFoundException(postId));
+                .orElseThrow(() -> new ImageNotFoundException(postId));
     }
 
     @Transactional(readOnly = true)

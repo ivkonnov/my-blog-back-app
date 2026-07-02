@@ -39,7 +39,7 @@ public class PostController {
             @RequestParam("pageSize") int pageSize
     ) {
         log.info("Get posts with search: {} pageNumber: {} pageSize: {}", search, pageNumber, pageSize);
-        PagePostsDto page = postService.getPosts(search, pageNumber, pageSize);
+        PagePostsDto page = postService.getPagePosts(search, pageNumber, pageSize);
         return ResponseEntity.ok(page);
     }
 

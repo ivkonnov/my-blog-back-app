@@ -24,7 +24,7 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public PagePostsDto getPosts(
+    public PagePostsDto getPagePosts(
             String search,
             int pageNumber,
             int pageSize
@@ -40,8 +40,10 @@ public class PostService {
 
             // формируем список тегов и заголовка
             for (String word : words) {
+                if (word.isEmpty()) continue;
                 if (word.startsWith("#")) {
-                    if (word.length() > 1) tags.add(word.substring(1));
+                    word = word.replace("#", "");
+                    if (!word.isEmpty()) tags.add(word);
                 }
                 else titleList.add(word);
             }
@@ -71,7 +73,7 @@ public class PostService {
         }
 
         return new PagePostsDto(
-                posts.stream().map(postMapper::toPostDto).toList(),
+                posts.stream().map(postMapper::toPostPreviewDto).toList(),
                 hasPrev,
                 hasNext,
                 lastPage

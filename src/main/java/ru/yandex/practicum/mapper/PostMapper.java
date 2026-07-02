@@ -4,7 +4,10 @@ import org.springframework.stereotype.Component;
 import ru.yandex.practicum.domain.Post;
 import ru.yandex.practicum.dto.NewPostDto;
 import ru.yandex.practicum.dto.PostDto;
+import ru.yandex.practicum.dto.PostPreviewDto;
 import ru.yandex.practicum.dto.UpdatePostDto;
+
+import static ru.yandex.practicum.util.PostPreviewDisplay.getTextPreview;
 
 @Component
 public class PostMapper {
@@ -36,4 +39,16 @@ public class PostMapper {
                 post.getCommentsCount()
         );
     }
+
+    public PostPreviewDto toPostPreviewDto(Post post) {
+        return new PostPreviewDto(
+                post.getId(),
+                post.getTitle(),
+                getTextPreview(post.getText()),
+                post.getTags(),
+                post.getLikesCount(),
+                post.getCommentsCount()
+        );
+    }
+
 }

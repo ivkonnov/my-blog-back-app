@@ -22,8 +22,6 @@ import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.configuration.WebConfiguration;
 import ru.yandex.practicum.dto.*;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -31,6 +29,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static ru.yandex.practicum.util.PostPreviewDisplay.*;
 import static ru.yandex.practicum.validation.PostValidationLimits.*;
 import static ru.yandex.practicum.exception.ErrorMessages.*;
 
@@ -59,39 +58,17 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         }
 
         @ParameterizedTest
-        @CsvSource({
-                "-ого #заметка поста #лонгрид, 1, 5, 2, 1",
-                "-ого пост, 3, 5, 5, 3",
-                "#заметка #лонгрид, 1, 5, 3, 1",
-                "'', 2, 5, 5, 4",                     // если строка поиска пустая, то из всех постов будут взяты 5 постов со смещением для 2-ой страницы
-                "несуществующий пост, 1, 5, 0, 0",    // если постов с таким заголовком не существует, то вернется пустая страница
-                "##заметка, 1, 5, 0, 0",              // если тег начинается с ##, то вернется пустая страница
-                "# #заметка, 1, 5, 5, 2"              // если тег пустой или введён случайно, то символ # игнорируем
-        })
+        @MethodSource("provideSearchPosts")
         void searchPosts_success(
                 String search,
                 int pageNumber,
                 int pageSize,
+                String expectedTitle,
+                List<String> expectedTags,
                 int expectedPostsSize,
                 int expectedLastPage
         ) throws Exception {
-            LinkedList<String> expectedTitleList = new LinkedList<>();
-            List<String> expectedTags = new ArrayList<>();
-            String expectedTitle = "";
-
-            // формируем ожидаемый список тегов и подстроку заголовка, которые должны быть в каждом посте
-            if (!search.isEmpty()) {
-                String[] words = search.split(" ");
-                for (String word : words) {
-                    String hashtag = "#";
-                    // формируем ожидаемый список тегов
-                    if (word.startsWith(hashtag)) {
-                        if (word.length() > hashtag.length()) expectedTags.add(word.substring(hashtag.length()));
-                    } else expectedTitleList.add(word);
-                }
-                // собираем подстроку ожидаемого заголовка
-                expectedTitle = String.join(" ", expectedTitleList);
-            }
+            String regexExpectedTextPreviewMaxLength = "^.{0," + (POST_TEXT_PREVIEW_MAX_LENGTH + ELLIPSIS.length()) + "}$";
 
             mockMvc.perform(get("/api/posts")
                             .param("search", search)
@@ -101,10 +78,39 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.posts", hasSize(expectedPostsSize)))
                     .andExpect(jsonPath("$.posts[*].title", everyItem(containsString(expectedTitle))))
+                    .andExpect(jsonPath("$.posts[*].text").value(everyItem(matchesRegex(regexExpectedTextPreviewMaxLength))))
                     .andExpect(jsonPath("$.posts[*].tags", everyItem(hasItems(expectedTags.toArray()))))
                     .andExpect(jsonPath("$.hasPrev").value(pageNumber > 1))
                     .andExpect(jsonPath("$.hasNext").value(pageNumber < expectedLastPage))
                     .andExpect(jsonPath("$.lastPage").value(expectedLastPage));
+        }
+
+        private static Stream<Arguments> provideSearchPosts() {
+            return Stream.of(
+                    // поиск по частям названия и тегам
+                    Arguments.of("-ого #заметка поста #лонгрид", 1, 5, "-ого поста", List.of("заметка", "лонгрид"), 2, 1),
+
+                    // поиск по части названия
+                    Arguments.of("-ого пост", 3, 5, "-ого пост", List.of(), 5, 3),
+
+                    // поиск по тегам
+                    Arguments.of("#заметка #лонгрид", 1, 5, "", List.of("заметка", "лонгрид"), 3, 1),
+
+                    // если строка поиска пустая, то будут найдены все посты и из них будут взяты 5 постов со смещением для 2-ой страницы
+                    Arguments.of("", 2, 5, "", List.of(), 5, 4),
+
+                    // если постов с таким заголовком не существует, то вернется пустая страница
+                    Arguments.of("несуществующий пост", 1, 5, "", List.of(), 0, 0),
+
+                    // если тег начинается с опечатки ##, то лишние символы # игнорируются и поиск по тегу происходит корректно
+                    Arguments.of("##заметка", 1, 5, "", List.of("заметка"), 5, 2),
+
+                    // если тег пустой или введён случайно, то символ # игнорируем
+                    Arguments.of("# #заметка", 1, 5, "", List.of("заметка"), 5, 2),
+
+                    // если в строке поиска есть лишние пробелы, то пробелы игнорируются
+                    Arguments.of("  #заметка   публикац", 1, 5, "публикац", List.of("заметка"), 4, 1)
+            );
         }
     }
 

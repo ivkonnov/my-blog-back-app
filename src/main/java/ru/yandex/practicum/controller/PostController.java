@@ -33,13 +33,13 @@ public class PostController {
 
     // Получение постов по запросу из строки поиска
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<PagePostsDto> getPagePosts(
+    public ResponseEntity<PagePostsDto> findPagePostsBySearch(
             @RequestParam("search") String search,
             @RequestParam("pageNumber") int pageNumber,
             @RequestParam("pageSize") int pageSize
     ) {
         log.info("Get posts with search: {} pageNumber: {} pageSize: {}", search, pageNumber, pageSize);
-        PagePostsDto page = postService.getPagePosts(search, pageNumber, pageSize);
+        PagePostsDto page = postService.findPagePostsBySearch(search, pageNumber, pageSize);
         return ResponseEntity.ok(page);
     }
 
@@ -70,6 +70,15 @@ public class PostController {
         log.info("Update postId: {}", postId);
         PostDto postDto = postService.updatePost(postId, updatePostDto);
         return ResponseEntity.ok(postDto);
+    }
+
+    @DeleteMapping(value = "/{postId}")
+    public ResponseEntity<Void> deletePost(
+            @PathVariable("postId") Long postId
+    ) {
+        log.info("Delete postId: {}", postId);
+        postService.deletePost(postId);
+        return ResponseEntity.ok().build();
     }
 
     // Добавление лайка
@@ -138,7 +147,8 @@ public class PostController {
             @PathVariable("postId") String postId
     ) {
         log.info("Get all comments of postId: {}", postId);
-        // странно, что фронт не определив номер id поста преждевременно отправляет запрос с undefined
+
+        // Странно, что фронт не определив номер id поста преждевременно отправляет запрос с undefined
         if (postId.equals("undefined")) {
             return ResponseEntity.badRequest().body(emptyList());
         }
@@ -164,4 +174,13 @@ public class PostController {
         return ResponseEntity.ok(updatedComment);
     }
 
+    @DeleteMapping(value = "/{postId}/comments/{commentId}")
+    public ResponseEntity<Void> deleteComment(
+            @PathVariable("postId") Long postId,
+            @PathVariable("commentId") Long commentId
+    ) {
+        log.info("Delete commentId: {} of postId: {}", commentId, postId);
+        commentService.deleteComment(postId, commentId);
+        return ResponseEntity.ok().build();
+    }
 }

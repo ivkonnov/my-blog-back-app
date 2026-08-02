@@ -32,17 +32,16 @@ public class CommentRepositoryImpl implements CommentRepository {
     }
 
     @Override
-    public Comment update(Long postId, Long commentId, Comment comment) {
+    public int update(Long postId, Long commentId, Comment comment) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("commentId", commentId)
                 .addValue("text", comment.getText())
                 .addValue("postId", postId);
 
-        nameParamJdbcTemplate.update(
+        return nameParamJdbcTemplate.update(
                 "UPDATE comments SET text = :text WHERE id = :commentId AND post_id = :postId",
                 params
         );
-        return findById(postId, comment.getId()).orElseThrow();
     }
 
     @Override
@@ -101,6 +100,18 @@ public class CommentRepositoryImpl implements CommentRepository {
                 Integer.class
         );
         return commentsCount != null && commentsCount > 0;
+    }
+
+    @Override
+    public int deleteById(Long postId, Long commentId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("commentId", commentId)
+                .addValue("postId", postId);
+
+        return nameParamJdbcTemplate.update(
+                "DELETE FROM comments WHERE id = :commentId AND post_id = :postId",
+                params
+        );
     }
 
 

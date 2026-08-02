@@ -9,11 +9,14 @@ public interface CommentRepository {
 
     Long save(Long postId, Comment comment);
 
-    Comment update(Long postId, Long commentId, Comment comment);
+    int update(Long postId, Long commentId, Comment comment);
 
     Optional<Comment> findById(Long postId, Long commentId);
 
     List<Comment> findAllByPostId(Long postId);
 
+    int deleteById(Long postId, Long commentId);
+
     boolean existsById(Long postId, Long commentId);
+
 }

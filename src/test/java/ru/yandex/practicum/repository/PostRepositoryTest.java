@@ -1,7 +1,5 @@
 package ru.yandex.practicum.repository;
 
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,9 +8,9 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.domain.Post;
+import ru.yandex.practicum.domain.Tag;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,20 +18,16 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringJUnitConfig(PostRepositoryImpl.class)
 public class PostRepositoryTest extends AbstractPostgresMvcTest {
 
     @Autowired
     PostRepository postRepository;
 
-    @Nested
-    class SearchPosts {
-        @BeforeAll
-        static void setUp() {
-            // генерируем и добавляем в базу данных 19 постов
-            setUpGenAddPosts(19);
-        }
+    @Autowired
+    TagRepository tagRepository;
 
+    @Nested
+    class FindPagePostsBySearch {
         @ParameterizedTest
         @CsvSource({
                 "10, 0, 10", // 1-ая страница с 10 постами
@@ -246,28 +240,48 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
             assertEquals(newPost.getText(), post.getText());
             assertEquals(newPost.getLikesCount(), post.getLikesCount());
             assertEquals(newPost.getCommentsCount(), post.getCommentsCount());
-            assertEquals(newPost.getTags().size(), post.getTags().size());
-            assertTrue(newPost.getTags().containsAll(post.getTags()));
         }
 
         private static Stream<Arguments> provideAddPost() {
-            String title = "Название n-ого поста";
-            String text = "Контент n-ого поста";
             return Stream.of(
-                    Arguments.of(Post.builder().title(title).text(text).tags(List.of("пост_n")).build()),
-                    Arguments.of(Post.builder().title(title).text(text).tags(List.of("пост_n", "заметка")).build())
+                    Arguments.of(Post.builder().title("Название n-ого поста").text("Контент n-ого поста").build())
             );
         }
     }
 
     @Nested
-    class GetPost {
-        @BeforeAll
-        static void setUp() {
-            // генерируем и добавляем в базу данных 2 поста
-            setUpGenAddPosts(2);
+    class LinkPostTags {
+        @Test
+        void clearPostTags_success() {
+            Long postId = 1L;
+            List<Tag> tags = tagRepository.findAllByPostId(postId);
+            assertFalse(tags.isEmpty());
+
+            postRepository.clearPostTags(postId);
+            List<Tag> tagsEmpty = tagRepository.findAllByPostId(postId);
+            assertTrue(tagsEmpty.isEmpty());
         }
 
+        @Test
+        void linkPostTags_success() {
+            Long postId = 2L;
+            List<Tag> tags = tagRepository.findAllByPostId(postId);
+            assertFalse(tags.isEmpty());
+            List<Long> expectedTagIds = tags.stream().map(Tag::getId).toList();
+
+            postRepository.clearPostTags(postId);
+            List<Tag> tagsEmpty = tagRepository.findAllByPostId(postId);
+            assertTrue(tagsEmpty.isEmpty());
+
+            postRepository.linkPostTags(postId, expectedTagIds);
+            List<Tag> newTags = tagRepository.findAllByPostId(postId);
+            List<Long> newTagIds = newTags.stream().map(Tag::getId).toList();
+            assertEquals(expectedTagIds, newTagIds);
+        }
+    }
+
+    @Nested
+    class GetPost {
         @ParameterizedTest
         @MethodSource("provideGetPost")
         void getPost_success(
@@ -282,43 +296,34 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
             assertEquals(postId, post.getId());
             assertEquals(expectedPost.getTitle(), post.getTitle());
             assertEquals(expectedPost.getText(), post.getText());
-            assertEquals(expectedPost.getTags().size(), post.getTags().size());
-            assertTrue(post.getTags().containsAll(expectedPost.getTags()));
             assertEquals(expectedPost.getLikesCount(), post.getLikesCount());
             assertEquals(expectedPost.getCommentsCount(), post.getCommentsCount());
         }
 
         private static Stream<Arguments> provideGetPost() {
             return Stream.of(
-                    Arguments.of(1L, Post.builder().id(1L).title("Название 1-ого поста").text("Контент 1-ого поста").tags(List.of("пост_1")).likesCount(0L).commentsCount(0L).build()),
-                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "заметка")).likesCount(0L).commentsCount(0L).build())
+                    Arguments.of(1L, Post.builder().id(1L).title("Название 1-ого поста").text("Контент 1-ого поста").likesCount(0L).commentsCount(10L).build())
             );
         }
 
         @Test
         void getPost_returnEmpty_whenPostNotExists() {
-            Optional<Post> postOptional = postRepository.findById(NOT_EXIST_POST_ID);
+            Optional<Post> postOptional = postRepository.findById(POST_ID_NOT_FOUND);
             assertTrue(postOptional.isEmpty());
         }
 
         @Test
         void existsById_true_and_false() {
             assertTrue(postRepository.existsById(1L));
-            assertFalse(postRepository.existsById(NOT_EXIST_POST_ID));
+            assertFalse(postRepository.existsById(POST_ID_NOT_FOUND));
         }
     }
 
     @Nested
     class UpdatePost {
-        @BeforeEach
-        void setUp() {
-            // генерируем и добавляем в базу данных 2 поста
-            setUpGenAddPosts(2);
-        }
-
         @ParameterizedTest
         @MethodSource("provideUpdatePost")
-        void update_success(Long postId, Post updatedPost, List<String> expectedUpdateTags) {
+        void update_success(Long postId, Post updatedPost) {
             postRepository.update(postId, updatedPost);
 
             Optional<Post> postOptional = postRepository.findById(postId);
@@ -328,41 +333,28 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
             assertEquals(updatedPost.getId(), updatedPostFromDb.getId());
             assertEquals(updatedPost.getTitle(), updatedPostFromDb.getTitle());
             assertEquals(updatedPost.getText(), updatedPostFromDb.getText());
-            assertEquals(expectedUpdateTags.size(), updatedPostFromDb.getTags().size());
-            assertTrue(expectedUpdateTags.containsAll(updatedPostFromDb.getTags()));
         }
 
         private static Stream<Arguments> provideUpdatePost() {
             return Stream.of(
-                    // обновляем только название и контент 1-ого поста с передачей пустого списка тегов [], что означает без изменений тегов
-                    Arguments.of(1L, Post.builder().id(1L).title("Новое название").text("Новый контент").tags(List.of()).build(), List.of("пост_1")),
-
-                    // обновляем все поля: название, контент и тег 1-ого поста
-                    Arguments.of(1L, Post.builder().id(1L).title("Новое название").text("Новый контент").tags(List.of("новый_тег")).build(), List.of("новый_тег")),
-                    // обновляем только тег 1-ого поста
-                    Arguments.of(1L, Post.builder().id(1L).title("Название 1-ого поста").text("Контент 1-ого поста").tags(List.of("новый_тег")).build(), List.of("новый_тег")),
-
-                    // если обновить 2-ой пост, но ничего не изменяя
-                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "заметка")).build(), List.of("пост_2", "заметка")),
-                    // обновляем только теги 2-ого поста, удалив 1 тег
-                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2")).build(), List.of("пост_2")),
-                    // обновляем только теги 2-ого поста, добавив 1 тег
-                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "заметка", "новый_тег")).build(), List.of("пост_2", "заметка", "новый_тег")),
-
-                    // обновляем только теги 2-ого поста, удалив 1 тег и добавив 1 тег
-                    Arguments.of(2L, Post.builder().id(2L).title("Название 2-ого поста").text("Контент 2-ого поста").tags(List.of("пост_2", "новый_тег")).build(), List.of("пост_2", "новый_тег"))
+                    // обновляем название и контент 1-ого поста
+                    Arguments.of(1L, Post.builder().id(1L).title("Новое название").text("Новый контент").build())
             );
         }
     }
 
     @Nested
-    class Likes {
-        @BeforeEach
-        void setUp() {
-            // генерируем и добавляем в базу данных 1 пост
-            setUpGenAddPosts(1);
+    class DeletePost {
+        @Test
+        void delete_success() {
+            Long postId = 1L;
+            postRepository.deleteById(postId);
+            assertFalse(postRepository.existsById(postId));
         }
+    }
 
+    @Nested
+    class Likes {
         @Test
         void addLike() {
             for (int i = 1; i <= 10; i++) {
@@ -374,12 +366,6 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
 
     @Nested
     class UpdateAndGetImage {
-        @BeforeEach
-        void setUp() {
-            // генерируем и добавляем в базу данных 1 пост
-            setUpGenAddPosts(1);
-        }
-
         @Test
         void updateAndGetImage_success() {
             byte[] newImage = new byte[]{1, 2, 3, 4};
@@ -399,16 +385,11 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
     }
 
     @Nested
-    class CommentsCount {
-        @BeforeAll
-        static void setUp() {
-            // генерируем и добавляем в базу данных 1 пост
-            setUpGenAddPosts(1);
-        }
-
+    class CommentCounter {
         @Test
         void incrementCommentsCount() {
-            Long postId = 1L;
+            Long postId = 2L;
+
             for (int i = 1; i <= 10; i++) {
                 boolean isIncrement = postRepository.incrementCommentsCount(postId);
                 assertTrue(isIncrement);
@@ -420,6 +401,25 @@ public class PostRepositoryTest extends AbstractPostgresMvcTest {
                 assertEquals(i, post.getCommentsCount());
             }
         }
-    }
 
+        @Test
+        void decrementCommentsCount() {
+            Long postId = 2L;
+
+            for (int i = 1; i <= 10; i++)
+                postRepository.incrementCommentsCount(postId);
+
+            for (int i = 9; i >= 0; i--) {
+                boolean isDecrement = postRepository.decrementCommentsCount(postId);
+                assertTrue(isDecrement);
+
+                Optional<Post> postOptional = postRepository.findById(postId);
+                assertTrue(postOptional.isPresent());
+
+                Post post = postOptional.get();
+                assertEquals(i, post.getCommentsCount());
+            }
+        }
+    }
+    
 }

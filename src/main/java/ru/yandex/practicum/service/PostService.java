@@ -1,30 +1,39 @@
 package ru.yandex.practicum.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.domain.Post;
+import ru.yandex.practicum.domain.Tag;
 import ru.yandex.practicum.dto.*;
+import ru.yandex.practicum.exception.CommentCountUpdateException;
 import ru.yandex.practicum.exception.ImageNotFoundException;
 import ru.yandex.practicum.exception.PostNotFoundException;
 import ru.yandex.practicum.mapper.PostMapper;
 import ru.yandex.practicum.repository.PostRepository;
+import ru.yandex.practicum.repository.TagRepository;
 
 import java.util.*;
 
+@Slf4j
 @Service
 public class PostService {
 
     private final PostRepository postRepository;
 
+    // решил не создавать TagService для TagRepository т.к. теги не являются самостоятельным бизнес‑объектом
+    private final TagRepository tagRepository;
+
     private final PostMapper postMapper;
 
-    public PostService(PostRepository postRepository, PostMapper postMapper) {
+    public PostService(PostRepository postRepository, TagRepository tagRepository, PostMapper postMapper) {
         this.postRepository = postRepository;
+        this.tagRepository = tagRepository;
         this.postMapper = postMapper;
     }
 
     @Transactional(readOnly = true)
-    public PagePostsDto getPagePosts(
+    public PagePostsDto findPagePostsBySearch(
             String search,
             int pageNumber,
             int pageSize
@@ -85,14 +94,29 @@ public class PostService {
         Post post = postMapper.toPost(newPostDto);
         Long postId = postRepository.save(post);
         post.setId(postId);
+        log.info("Saved title and text for new postId: {}", postId);
+
+        List<String> tags = post.getTags();
+        if (!tags.isEmpty()) {
+            // Вставка тегов
+            List<Long> tagIds = tagRepository.saveAll(tags);
+            // Сохранение связи пост-теги
+            postRepository.linkPostTags(postId, tagIds);
+            log.info("Post-tag links saved for new postId: {} and tagIds: {}", postId, tagIds);
+        }
+        log.info("New post saved with id: {} title: {}", postId, post.getTitle());
         return postMapper.toPostDto(post);
     }
 
     @Transactional(readOnly = true)
     public PostDto getPost(Long postId) {
-        return postRepository.findById(postId)
-                .map(postMapper::toPostDto)
+        Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
+
+        List<Tag> tags = tagRepository.findAllByPostId(postId);
+        post.setTags(tags.stream().map(Tag::getName).toList());
+
+        return postMapper.toPostDto(post);
     }
 
     @Transactional
@@ -101,8 +125,35 @@ public class PostService {
             throw new PostNotFoundException(postId);
 
         Post post = postMapper.toPost(updatePostDto);
-        Post updatedPost = postRepository.update(postId, post);
-        return postMapper.toPostDto(updatedPost);
+        postRepository.update(postId, post);
+        log.info("Updated title and text for postId: {}", postId);
+
+        // Обновление тегов
+        List<String> updateTags = updatePostDto.tags();
+        if (!updateTags.isEmpty()) {
+            // Вставка новых тегов
+            List<Long> newTagIds = tagRepository.saveAll(updateTags);
+            log.info("Updated tagIds: {} for postId: {}", newTagIds, postId);
+
+            // Отвязываем удаленные теги от поста
+            postRepository.clearPostTags(postId);
+            log.info("Cleared post-tag links for postId: {}", postId);
+
+            // Сохраняем новые связи поста с новыми тегами
+            postRepository.linkPostTags(postId, newTagIds);
+            log.info("Post-tag links updated for postId: {} and new tagIds: {}", postId, newTagIds);
+        }
+        log.info("Post updated with id: {} title: {}", postId, post.getTitle());
+        return getPost(postId);
+    }
+
+    @Transactional
+    public void deletePost(Long postId) {
+        if (!existsById(postId))
+            throw new PostNotFoundException(postId);
+
+        postRepository.deleteById(postId);
+        log.info("Deleted postId: {}", postId);
     }
 
     @Transactional
@@ -135,8 +186,19 @@ public class PostService {
         return postRepository.existsById(postId);
     }
 
-    public boolean incrementCommentsCount(Long postId) {
-        return postRepository.incrementCommentsCount(postId);
+    public void incrementCommentsCount(Long postId) {
+        boolean updatedCommentsCount = postRepository.incrementCommentsCount(postId);
+        if (!updatedCommentsCount) {
+            throw new CommentCountUpdateException(postId);
+        }
     }
+
+    public void decrementCommentsCount(Long postId) {
+        boolean updatedCommentsCount =  postRepository.decrementCommentsCount(postId);
+        if (!updatedCommentsCount) {
+            throw new CommentCountUpdateException(postId);
+        }
+    }
+
 
 }

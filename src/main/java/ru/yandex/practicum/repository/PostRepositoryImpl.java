@@ -1,6 +1,5 @@
 package ru.yandex.practicum.repository;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -12,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
-@Slf4j
 @Repository
 public class PostRepositoryImpl implements PostRepository {
 
@@ -28,29 +26,17 @@ public class PostRepositoryImpl implements PostRepository {
                 .addValue("title", post.getTitle())
                 .addValue("text", post.getText());
 
-        // Вставка поста
-        Long postId = nameParamJdbcTemplate.queryForObject(
+        // Вставка поста и получение его id
+        return nameParamJdbcTemplate.queryForObject(
                 "INSERT INTO posts (title, text) VALUES (:title, :text) RETURNING id",
                 params,
                 Long.class
         );
-        log.info("New post saved with id: {} title: {}", postId, post.getTitle());
 
-        List<String> tags = post.getTags();
-        if (!tags.isEmpty()) {
-            // Вставка тегов
-            List<Long> tagIds = saveTags(tags);
-            log.info("Saved tagIds: {} for new postId: {}", tagIds, postId);
-
-            // Сохранение связи пост-теги
-            savePostTagLinks(postId, tagIds);
-            log.info("Post-tag links saved for new postId: {} and tagIds: {}", postId, tagIds);
-        }
-        return postId;
     }
 
     @Override
-    public Post update(Long postId, Post updatePost) {
+    public void update(Long postId, Post updatePost) {
         // Обновление названия и текста поста
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("updateTitle", updatePost.getTitle())
@@ -61,78 +47,20 @@ public class PostRepositoryImpl implements PostRepository {
                 "UPDATE posts SET title = :updateTitle, text = :updateText WHERE id = :postId",
                 params
         );
-        log.info("Updated title and text for postId: {}", postId);
-
-        // Обновление тегов
-        List<String> updateTags = updatePost.getTags();
-        if (!updateTags.isEmpty()) {
-            // Получение id текущих тегов
-            List<Long> currentTagIds = getTagIds(postId);
-            log.info("Current tagIds: {} before update tags for postId: {}", currentTagIds, postId);
-
-            // Вставка новых тегов
-            List<Long> updatedTagIds = saveTags(updateTags);
-            log.info("Updated tagIds: {} for postId: {}", updatedTagIds, postId);
-
-            // Сохраняем новые связи поста с новыми тегами
-            savePostTagLinks(postId, updatedTagIds);
-            log.info("Post-tag links updated for postId: {} and tagIds: {}", postId, updatedTagIds);
-
-
-            // Определяем теги, которые были удалены и должны быть отвязаны от поста
-            List<Long> oldTagIdsToUnlink = currentTagIds.stream()
-                    .filter(currentTagId -> !updatedTagIds.contains(currentTagId))
-                    .toList();
-
-            if (!oldTagIdsToUnlink.isEmpty()) {
-                // Отвязываем удаленные теги от поста
-                unlinkPostTags(postId, oldTagIdsToUnlink);
-                log.info("Post-tag unlinked old tagIds: {} for postId: {}", oldTagIdsToUnlink, postId);
-
-                // Удаляем неиспользуемые теги (отвязанные от текущего поста и не привязанные к другим постам)
-                // Это уже не относится к методу обновления поста и в целом можно запускать по шедулеру в другом месте, чтобы не копился мусор
-                deleteUnusedTags(oldTagIdsToUnlink);
-                log.info("Deleted unused tagIds: {}", oldTagIdsToUnlink);
-            }
-        }
-        return findById(postId).orElseThrow();
     }
 
-    private List<Long> saveTags(List<String> tags) {
-        List<MapSqlParameterSource> batchTagParams = tags.stream()
-                .map(tag -> new MapSqlParameterSource("tag", tag))
-                .toList();
-
-        // Вставка тегов
-        nameParamJdbcTemplate.batchUpdate(
-                "INSERT INTO tags (name) VALUES (:tag) ON CONFLICT (name) DO NOTHING",
-                batchTagParams.toArray(MapSqlParameterSource[]::new)
-        );
-
-        MapSqlParameterSource tagsParams = new MapSqlParameterSource()
-                .addValue("tags", tags);
-
-        // Возвращаем все id новых тегов
-        return nameParamJdbcTemplate.queryForList(
-                "SELECT id FROM tags WHERE name IN (:tags)",
-                tagsParams,
-                Long.class
-        );
-    }
-
-    private void unlinkPostTags(Long postId, List<Long> tagIds) {
+    public void clearPostTags(Long postId) {
         MapSqlParameterSource tagIdsParams = new MapSqlParameterSource()
-                .addValue("postId", postId)
-                .addValue("tagIds", tagIds);
+                .addValue("postId", postId);
 
         // Удаляем связи пост-теги
         nameParamJdbcTemplate.update(
-                "DELETE FROM posts_tags WHERE post_id = :postId AND tag_id IN (:tagIds)",
+                "DELETE FROM posts_tags WHERE post_id = :postId",
                 tagIdsParams
         );
     }
 
-    private void savePostTagLinks(Long postId, List<Long> tagIds) {
+    public void linkPostTags(Long postId, List<Long> tagIds) {
         List<MapSqlParameterSource> batchPostIdTagIdParams = tagIds.stream()
                 .map(tagId -> new MapSqlParameterSource()
                         .addValue("postId", postId)
@@ -146,28 +74,14 @@ public class PostRepositoryImpl implements PostRepository {
         );
     }
 
-    private List<Long> getTagIds(Long postId) {
+    @Override
+    public void deleteById(Long postId) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("postId", postId);
 
-        return nameParamJdbcTemplate.queryForList(
-                "SELECT tag_id FROM posts_tags WHERE post_id = :postId",
-                params,
-                Long.class
-        );
-    }
-
-    private void deleteUnusedTags(List<Long> tagIds) {
-        MapSqlParameterSource unlinkedTagIdsParams = new MapSqlParameterSource("tagIds", tagIds);
         nameParamJdbcTemplate.update(
-                """
-                    DELETE FROM tags t
-                    WHERE t.id IN (:tagIds) AND NOT EXISTS(
-                        SELECT 1 FROM posts_tags pt
-                        WHERE t.id = pt.tag_id
-                    )
-                """,
-                unlinkedTagIdsParams
+                "DELETE FROM posts WHERE id = :postId",
+                params
         );
     }
 
@@ -191,24 +105,20 @@ public class PostRepositoryImpl implements PostRepository {
         try {
             // Получаем пост
             Post post = nameParamJdbcTemplate.queryForObject(
-                """
-                    SELECT p.id, p.title, p.text, p.likes_count, p.comments_count, ARRAY_AGG(t.name) AS tag_names
-                    FROM posts p
-                        JOIN posts_tags pt ON p.id = pt.post_id
-                        JOIN tags t ON pt.tag_id = t.id
-                    WHERE p.id = :postId
-                    GROUP BY p.id
-                """,
-                params,
-                (resultSet, rowNum) ->
-                    Post.builder()
-                            .id(resultSet.getLong("id"))
-                            .title(resultSet.getString("title"))
-                            .text(resultSet.getString("text"))
-                            .tags(getResultTags(resultSet))
-                            .likesCount(resultSet.getLong("likes_count"))
-                            .commentsCount(resultSet.getLong("comments_count"))
-                            .build()
+                    """
+                        SELECT id, title, text, likes_count, comments_count
+                        FROM posts
+                        WHERE id = :postId
+                    """,
+                    params,
+                    (resultSet, rowNum) ->
+                            Post.builder()
+                                    .id(resultSet.getLong("id"))
+                                    .title(resultSet.getString("title"))
+                                    .text(resultSet.getString("text"))
+                                    .likesCount(resultSet.getLong("likes_count"))
+                                    .commentsCount(resultSet.getLong("comments_count"))
+                                    .build()
             );
             return Optional.ofNullable(post);
         } catch (EmptyResultDataAccessException e) {
@@ -218,10 +128,9 @@ public class PostRepositoryImpl implements PostRepository {
 
     @Override
     public Long countPosts() {
-        MapSqlParameterSource params = new MapSqlParameterSource();
         return nameParamJdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM posts",
-                params,
+                new MapSqlParameterSource(),
                 Long.class
         );
     }
@@ -465,6 +374,18 @@ public class PostRepositoryImpl implements PostRepository {
 
         int updated = nameParamJdbcTemplate.update(
                 "UPDATE posts SET comments_count = comments_count + 1 WHERE id = :postId",
+                params
+        );
+        return updated > 0;
+    }
+
+    @Override
+    public boolean decrementCommentsCount(Long postId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("postId", postId);
+
+        int updated = nameParamJdbcTemplate.update(
+                "UPDATE posts SET comments_count = comments_count - 1 WHERE id = :postId",
                 params
         );
         return updated > 0;

@@ -11,9 +11,15 @@ public interface PostRepository {
 
     Optional<Post> findById(Long postId);
 
-    Post update(Long postId, Post post);
+    void update(Long postId, Post post);
+
+    void deleteById(Long postId);
 
     Long addLike(Long postId);
+
+    void linkPostTags(Long postId, List<Long> tagIds);
+
+    void clearPostTags(Long postId);
 
     Long countPosts();
 
@@ -37,5 +43,8 @@ public interface PostRepository {
 
     boolean incrementCommentsCount(Long postId);
 
+    boolean decrementCommentsCount(Long postId);
+
     boolean existsById(Long id);
+
 }

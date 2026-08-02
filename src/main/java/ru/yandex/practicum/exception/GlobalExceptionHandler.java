@@ -49,8 +49,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleIdMismatch(IdMismatchException ex) {
         log.warn(ex.getMessage());
         String userMessage = String.format(
-                "Несовпадение идентификаторов %s: значение из пути - %s, а в теле запроса - %s",
-                ex.getFieldName(), ex.getPathVariableId(), ex.getRequestBodyId()
+                "Несовпадение идентификаторов %s - в теле запроса: %s, но в url запроса: %s",
+                ex.getFieldName(), ex.getRequestBodyId(), ex.getPathVariableId()
         );
         ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
         return ResponseEntity.badRequest().body(errorResponseDto);

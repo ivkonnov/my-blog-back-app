@@ -6,7 +6,6 @@ import ru.yandex.practicum.domain.Comment;
 import ru.yandex.practicum.dto.CommentDto;
 import ru.yandex.practicum.dto.NewCommentDto;
 import ru.yandex.practicum.dto.UpdateCommentDto;
-import ru.yandex.practicum.exception.CommentCountUpdateException;
 import ru.yandex.practicum.exception.CommentNotFoundException;
 import ru.yandex.practicum.exception.PostNotFoundException;
 import ru.yandex.practicum.mapper.CommentMapper;
@@ -42,11 +41,8 @@ public class CommentService {
         Long commentId = commentRepository.save(postId, comment);
         comment.setId(commentId);
 
-        // Увеличиваем счетчик комментариев у поста
-        boolean updated = postService.incrementCommentsCount(postId);
-        if (!updated) {
-            throw new CommentCountUpdateException(postId);
-        }
+        // Увеличиваем счетчик комментариев поста
+        postService.incrementCommentsCount(postId);
 
         return commentMapper.toCommentDto(comment);
     }
@@ -63,11 +59,9 @@ public class CommentService {
 
     @Transactional(readOnly = true)
     public List<CommentDto> getComments(Long postId) {
-        if (!postService.existsById(postId))
-            throw new PostNotFoundException(postId);
-
         return commentRepository.findAllByPostId(postId).stream()
-                .map(commentMapper::toCommentDto).toList();
+                .map(commentMapper::toCommentDto)
+                .toList();
     }
 
     @Transactional
@@ -75,12 +69,26 @@ public class CommentService {
         if (!postService.existsById(postId))
             throw new PostNotFoundException(postId);
 
-        if (!commentRepository.existsById(postId, commentId))
+        Comment comment = commentMapper.toComment(updateCommentDto);
+        comment.setId(commentId);
+        comment.setPostId(postId);
+
+        int updated = commentRepository.update(postId, commentId, comment);
+        if (updated == 0)
             throw new CommentNotFoundException(postId, commentId);
 
-        Comment comment = commentMapper.toComment(updateCommentDto);
-        Comment updatedComment = commentRepository.update(postId, commentId, comment);
-        return commentMapper.toCommentDto(updatedComment);
+        return commentMapper.toCommentDto(comment);
     }
 
+    @Transactional
+    public void deleteComment(Long postId, Long commentId) {
+        if (!postService.existsById(postId))
+            throw new PostNotFoundException(postId);
+
+        int deleted = commentRepository.deleteById(postId, commentId);
+        if (deleted == 0) throw new CommentNotFoundException(postId, commentId);
+
+        // Уменьшаем счетчик комментариев поста
+        postService.decrementCommentsCount(postId);
+    }
 }

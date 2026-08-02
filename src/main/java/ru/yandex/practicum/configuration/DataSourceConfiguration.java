@@ -4,19 +4,31 @@ import lombok.extern.slf4j.Slf4j;
 import org.postgresql.Driver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 
 @Slf4j
 @Configuration
+@EnableTransactionManagement
+@ComponentScan(basePackages = {
+        "ru.yandex.practicum.service",
+        "ru.yandex.practicum.repository",
+        "ru.yandex.practicum.mapper"
+})
+@PropertySource("classpath:application.properties")
 public class DataSourceConfiguration {
 
     // Настройка DataSource — компонент, отвечающий за соединение с базой данных
@@ -38,6 +50,11 @@ public class DataSourceConfiguration {
     @Bean
     public NamedParameterJdbcTemplate namedParameterJdbcTemplate(DataSource dataSource) {
         return new NamedParameterJdbcTemplate(dataSource);
+    }
+
+    @Bean
+    public PlatformTransactionManager transactionManager(DataSource dataSource) {
+        return new DataSourceTransactionManager(dataSource);
     }
 
     // После инициализации контекста выполняем наполнение схемы базы данных

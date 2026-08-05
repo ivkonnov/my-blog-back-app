@@ -1,7 +1,8 @@
 package ru.yandex.practicum.configuration;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
-import org.postgresql.Driver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -13,7 +14,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -38,13 +38,33 @@ public class DataSourceConfiguration {
             @Value("${spring.datasource.username}") String username,
             @Value("${spring.datasource.password}") String password
     ) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(Driver.class.getName());
-        dataSource.setUrl(url);
-        dataSource.setUsername(username);
-        dataSource.setPassword(password);
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(url);
+        config.setUsername(username);
+        config.setPassword(password);
 
-        return dataSource;
+        // Максимальное количество соединений в пуле
+        config.setMaximumPoolSize(10);
+        // Минимальное количество «простаивающих» соединений, которые всегда должны быть готовы к использованию
+        config.setMinimumIdle(5);
+        // Таймаут ожидания соединения из пула: если за 30 секунд не удалось получить соединение — будет выброшено исключение
+        config.setConnectionTimeout(30000);
+        // Время простоя соединения, после которого оно может быть закрыто (не менее idleTimeout)
+        config.setIdleTimeout(600000);
+        // Максимальный срок жизни соединения: даже если оно активно используется, по истечении времени оно будет заменено новым
+        config.setMaxLifetime(1800000);
+
+        // Включаем кэширование подготовленных выражений (PreparedStatement) на стороне клиента - это ускоряет повторяющиеся запросы
+        config.addDataSourceProperty("cachePrepStmts", "true");
+        // Размер кэша подготовленных выражений
+        config.addDataSourceProperty("prepStmtCacheSize", "250");
+        // Максимальная длина SQL-запроса, который может быть закэширован
+        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+
+        // Имя пула соединений для отображения в логах
+        config.setPoolName("HikariPool-my-blog-back-app");
+
+        return new HikariDataSource(config);
     }
 
     @Bean

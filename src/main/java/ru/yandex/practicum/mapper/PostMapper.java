@@ -7,7 +7,7 @@ import ru.yandex.practicum.dto.PostDto;
 import ru.yandex.practicum.dto.PostPreviewDto;
 import ru.yandex.practicum.dto.UpdatePostDto;
 
-import static ru.yandex.practicum.util.PostPreviewDisplay.getTextPreview;
+import static ru.yandex.practicum.util.PostPreviewUtil.getTextPreview;
 
 @Component
 public class PostMapper {

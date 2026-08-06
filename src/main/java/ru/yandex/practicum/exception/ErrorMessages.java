@@ -24,8 +24,14 @@ public class ErrorMessages {
     public static final String MSG_POST_NOT_FOUND = "Пост не найден";
     public static final String MSG_COMMENT_NOT_FOUND = "Комментарий не найден";
     public static final String MSG_IMAGE_NOT_FOUND = "Изображение не найдено";
+    public static final String MSG_IMAGE_EMPTY = "Изображение не выбрано";
+    public static final String MSG_IMAGE_UPDATE_FAILED = "Не удалось обновить изображение";
+    public static final String MSG_IMAGE_READ_FAILED = "Не удалось прочитать файл с изображением";
 
     public static final String MSG_COMMENT_COUNT_UPDATE_ERROR = "Не удалось обновить счётчик комментариев для поста";
     public static final String MSG_COMMENT_ID_REQUIRED = "id комментария обязателен";
+
+    public static final String MSG_INVALID_PARAMETER_FORMAT = "Неверный формат параметра";
+    public static final String MSG_IDENTIFIER_MISMATCH = "Несовпадение идентификаторов";
 
 }

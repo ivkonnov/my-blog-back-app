@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.*;
-import static ru.yandex.practicum.util.PostPreviewDisplay.*;
+import static ru.yandex.practicum.util.PostPreviewUtil.*;
 
 public class PostServiceTest extends AbstractPostgresMvcTest {
 
@@ -207,12 +207,11 @@ public class PostServiceTest extends AbstractPostgresMvcTest {
         @Test
         void updateAndGetImage_success() {
             Long postId = 1L;
-            byte[] jpegStub = new byte[]{(byte) 137, 80, 78, 71};
-            boolean isUpdated = postService.updateImage(postId, jpegStub);
+            boolean isUpdated = postService.updateImage(postId, JPEG_IMAGE_STUB);
             assertTrue(isUpdated);
 
             byte[] image = postService.getImage(postId);
-            assertArrayEquals(jpegStub, image);
+            assertArrayEquals(JPEG_IMAGE_STUB, image);
         }
 
         @Test

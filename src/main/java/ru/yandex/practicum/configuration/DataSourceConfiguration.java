@@ -3,6 +3,7 @@ package ru.yandex.practicum.configuration;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
+import org.postgresql.Driver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -39,6 +40,7 @@ public class DataSourceConfiguration {
             @Value("${spring.datasource.password}") String password
     ) {
         HikariConfig config = new HikariConfig();
+        config.setDriverClassName(Driver.class.getName());
         config.setJdbcUrl(url);
         config.setUsername(username);
         config.setPassword(password);

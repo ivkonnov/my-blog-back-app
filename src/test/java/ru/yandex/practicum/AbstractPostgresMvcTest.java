@@ -31,6 +31,8 @@ public abstract class AbstractPostgresMvcTest {
 
     protected static final int COUNT_COMMENTS_POST_1 = 10;
 
+    protected static final byte[] JPEG_IMAGE_STUB = new byte[]{(byte) 137, 80, 78, 71};
+
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);

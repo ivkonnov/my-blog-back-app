@@ -10,12 +10,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import ru.yandex.practicum.dto.*;
 import ru.yandex.practicum.exception.IdMismatchException;
+import ru.yandex.practicum.exception.ImageEmptyException;
+import ru.yandex.practicum.exception.ImageReadFailedException;
+import ru.yandex.practicum.exception.ImageUpdateFailedException;
 import ru.yandex.practicum.service.CommentService;
 import ru.yandex.practicum.service.PostService;
 
+import java.io.IOException;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
 
 @Slf4j
 @RestController
@@ -91,19 +93,19 @@ public class PostController {
 
     // Обновление картинки поста
     @PutMapping(value = "/{postId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<String> updateImage(
+    public ResponseEntity<Void> updateImage(
             @PathVariable("postId") Long postId,
             @RequestParam("image") MultipartFile image
-    ) throws Exception {
-        if (image.isEmpty()) {
-            log.warn("Empty image for postId: {}", postId);
-            return ResponseEntity.badRequest().body("Empty image");
-        }
+    ) {
+        if (image == null || image.isEmpty())
+            throw new ImageEmptyException(postId);
+
         log.info("Update image for postId: {}", postId);
-        boolean updated = postService.updateImage(postId, image.getBytes());
-        if (!updated) {
-            log.error("Failed to update image for postId: {}", postId);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to update image");
+        try {
+            boolean updated = postService.updateImage(postId, image.getBytes());
+            if (!updated) throw new ImageUpdateFailedException(postId);
+        } catch (IOException e) {
+            throw new ImageReadFailedException(postId, e.getMessage());
         }
         return ResponseEntity.ok().build();
     }
@@ -144,15 +146,10 @@ public class PostController {
 
     @GetMapping(value = "/{postId}/comments", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<CommentDto>> getComments(
-            @PathVariable("postId") String postId
+            @PathVariable("postId") Long postId
     ) {
         log.info("Get all comments of postId: {}", postId);
-
-        // Странно, что фронт не определив номер id поста преждевременно отправляет запрос с undefined
-        if (postId.equals("undefined")) {
-            return ResponseEntity.badRequest().body(emptyList());
-        }
-        List<CommentDto> comments = commentService.getComments(Long.valueOf(postId));
+        List<CommentDto> comments = commentService.getComments(postId);
         return ResponseEntity.ok(comments);
     }
 

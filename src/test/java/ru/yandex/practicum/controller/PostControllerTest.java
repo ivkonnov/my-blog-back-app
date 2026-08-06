@@ -21,6 +21,7 @@ import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.configuration.WebConfiguration;
 import ru.yandex.practicum.dto.*;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -28,7 +29,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static ru.yandex.practicum.util.PostPreviewDisplay.*;
+import static ru.yandex.practicum.util.PostPreviewUtil.*;
 import static ru.yandex.practicum.validation.PostValidationLimits.*;
 import static ru.yandex.practicum.exception.ErrorMessages.*;
 
@@ -290,7 +291,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         }
 
         @Test
-        void updatePost_diffPostId_badRequest() throws Exception {
+        void updatePost_mismatchPostId_badRequest() throws Exception {
             Long postId = 1L;
             Long pathVariablePostId = 2L;
 
@@ -300,7 +301,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
             mockMvc.perform(put("/api/posts/{postId}", pathVariablePostId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(updatePostJson))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(containsString(MSG_IDENTIFIER_MISMATCH)));
         }
 
         @ParameterizedTest
@@ -405,8 +408,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         @Test
         void updateAndGetImage_success() throws Exception {
             Long postId = 1L;
-            byte[] jpegStub = new byte[]{(byte) 137, 80, 78, 71};
-            MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", jpegStub);
+            MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", JPEG_IMAGE_STUB);
 
             mockMvc.perform(MockMvcRequestBuilders.multipart("/api/posts/{postId}/image", postId)
                             .file(image)
@@ -420,7 +422,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.IMAGE_JPEG))
                     .andExpect(header().string("Cache-Control", "no-store"))
-                    .andExpect(content().bytes(jpegStub));
+                    .andExpect(content().bytes(JPEG_IMAGE_STUB));
 
         }
 
@@ -435,12 +437,38 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                                 return request;
                             }))
                     .andExpect(status().isBadRequest())
-                    .andExpect(content().string("Empty image"));
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_IMAGE_EMPTY));
+        }
+
+        @Test
+        void updateImage_IOException_ImageReadFailed() throws Exception {
+            MockMultipartFile image = new MockMultipartFile(
+                    "image",
+                    "image.jpg",
+                    "image/jpeg",
+                    JPEG_IMAGE_STUB
+            ) {
+                @Override
+                public byte[] getBytes() throws IOException {
+                    throw new IOException("Simulating an image reading error message");
+                }
+            };
+
+            mockMvc.perform(multipart("/api/posts/{postId}/image", 1L)
+                            .file(image)
+                            .with(request -> {
+                                request.setMethod("PUT");
+                                return request;
+                            }))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(containsString(MSG_IMAGE_READ_FAILED)));
         }
 
         @Test
         void updateImage_postNotFound_404() throws Exception {
-            MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", new byte[]{1, 2, 3});
+            MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", JPEG_IMAGE_STUB);
 
             mockMvc.perform(multipart("/api/posts/{postId}/image", POST_ID_NOT_FOUND)
                             .file(image)
@@ -538,7 +566,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         }
 
         @Test
-        void addComment_diffPostId_badRequest() throws Exception {
+        void addComment_mismatchPostId_badRequest() throws Exception {
             Long postId = 1L;
             Long pathVariablePostId = 2L;
 
@@ -548,7 +576,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
             mockMvc.perform(post("/api/posts/{postId}/comments", pathVariablePostId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(newCommentJson))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(containsString(MSG_IDENTIFIER_MISMATCH)));
         }
     }
 
@@ -601,7 +631,14 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$", empty()));
+        }
 
+        @Test
+        void getComments_typeMismatch_badRequest() throws Exception {
+            mockMvc.perform(get("/api/posts/{postId}/comments", "undefined"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$[0].message").value(containsString(MSG_INVALID_PARAMETER_FORMAT)));
         }
     }
 
@@ -656,7 +693,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
         }
 
         @Test
-        void updateComment_diffPostId_badRequest() throws Exception {
+        void updateComment_mismatchPostId_badRequest() throws Exception {
             Long commentId = 1L;
 
             Long postId = 1L;
@@ -668,11 +705,13 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
             mockMvc.perform(put("/api/posts/{postId}/comments/{commentId}", pathVariablePostId, commentId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(updateCommentJson))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(containsString(MSG_IDENTIFIER_MISMATCH)));
         }
 
         @Test
-        void updateComment_diffCommentId_badRequest() throws Exception {
+        void updateComment_mismatchCommentId_badRequest() throws Exception {
             Long commentId = 1L;
             Long pathVariableCommentId = 2L;
 
@@ -684,7 +723,9 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
             mockMvc.perform(put("/api/posts/{postId}/comments/{commentId}", postId, pathVariableCommentId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(updateCommentJson))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(containsString(MSG_IDENTIFIER_MISMATCH)));
         }
     }
 

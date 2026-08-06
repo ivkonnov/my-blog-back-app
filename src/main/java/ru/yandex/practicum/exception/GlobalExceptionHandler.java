@@ -1,5 +1,6 @@
 package ru.yandex.practicum.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.*;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.yandex.practicum.dto.ErrorResponseDto;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,12 +38,18 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(TypeMismatchException.class)
-    public ResponseEntity<ErrorResponseDto> handleTypeMismatch(TypeMismatchException ex) {
+    public ResponseEntity<?> handleTypeMismatch(TypeMismatchException ex, HttpServletRequest request) {
         String paramName = ex.getPropertyName();
         String invalidValue = ex.getValue().toString();
         log.warn("Invalid parameter: {} with value: {}", paramName, invalidValue);
-        String userMessage = String.format("Неверный формат параметра: %s со значением: %s", paramName, invalidValue);
+        String userMessage = String.format(MSG_INVALID_PARAMETER_FORMAT + " - %s со значением: %s", paramName, invalidValue);
         ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
+
+        // Аномалия фронта: принимает только список, иначе не отображает пост. Необходимо исправить фронт
+        if (request.getMethod().equals("GET") && request.getRequestURI().contains("/comments")) {
+            return ResponseEntity.badRequest().body(List.of(errorResponseDto));
+        }
+
         return ResponseEntity.badRequest().body(errorResponseDto);
     }
 
@@ -49,8 +57,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleIdMismatch(IdMismatchException ex) {
         log.warn(ex.getMessage());
         String userMessage = String.format(
-                "Несовпадение идентификаторов %s - в теле запроса: %s, но в url запроса: %s",
-                ex.getFieldName(), ex.getRequestBodyId(), ex.getPathVariableId()
+                MSG_IDENTIFIER_MISMATCH + " - %s в URL: %s, но в теле запроса: %s",
+                ex.getFieldName(), ex.getPathVariableId(), ex.getRequestBodyId()
         );
         ErrorResponseDto errorResponseDto = new ErrorResponseDto(userMessage);
         return ResponseEntity.badRequest().body(errorResponseDto);
@@ -105,6 +113,33 @@ public class GlobalExceptionHandler {
         ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_IMAGE_NOT_FOUND);
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(errorResponseDto);
+    }
+
+    @ExceptionHandler(ImageEmptyException.class)
+    public ResponseEntity<ErrorResponseDto> handleImageEmpty(ImageEmptyException ex) {
+        log.warn(ex.getMessage());
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_IMAGE_EMPTY);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(errorResponseDto);
+    }
+
+    @ExceptionHandler(ImageUpdateFailedException.class)
+    public ResponseEntity<ErrorResponseDto> handleImageUpdateFailed(ImageUpdateFailedException ex) {
+        log.error(ex.getMessage());
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_IMAGE_UPDATE_FAILED);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(errorResponseDto);
+    }
+
+    @ExceptionHandler(ImageReadFailedException.class)
+    public ResponseEntity<ErrorResponseDto> handleReadFailed(ImageReadFailedException ex) {
+        log.error(String.format("Failed to read image file for post with id %s. %s", ex.getPostId(), ex.getMessage()));
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto(MSG_IMAGE_READ_FAILED + ". " + ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorResponseDto);
     }
 

@@ -3,4 +3,4 @@
 .idea
 
 # Файлы сборки
-target/
+build/

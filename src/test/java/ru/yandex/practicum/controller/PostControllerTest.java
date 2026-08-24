@@ -1,25 +1,24 @@
 package ru.yandex.practicum.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
-import org.springframework.test.context.web.WebAppConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 import ru.yandex.practicum.AbstractPostgresMvcTest;
-import ru.yandex.practicum.configuration.WebConfiguration;
 import ru.yandex.practicum.dto.*;
+import ru.yandex.practicum.service.PostService;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,21 +32,19 @@ import static ru.yandex.practicum.util.PostPreviewUtil.*;
 import static ru.yandex.practicum.validation.PostValidationLimits.*;
 import static ru.yandex.practicum.exception.ErrorMessages.*;
 
-@SpringJUnitConfig(WebConfiguration.class)
-@WebAppConfiguration
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@AutoConfigureMockMvc
 public class PostControllerTest extends AbstractPostgresMvcTest {
 
     @Autowired
-    private WebApplicationContext wac;
-
     private MockMvc mockMvc;
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private ObjectMapper objectMapper;
 
-    @BeforeEach
-    void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
-    }
+    @MockitoSpyBean
+    PostService postService;
 
     @Nested
     class FindPagePostsBySearch {
@@ -424,6 +421,25 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
                     .andExpect(header().string("Cache-Control", "no-store"))
                     .andExpect(content().bytes(JPEG_IMAGE_STUB));
 
+        }
+
+        @Test
+        void updateImage_ImageUpdateFailed() throws Exception {
+            Long postId = 1L;
+
+            MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", JPEG_IMAGE_STUB);
+
+            Mockito.when(postService.updateImage(postId, JPEG_IMAGE_STUB)).thenReturn(false);
+
+            mockMvc.perform(multipart("/api/posts/{postId}/image", postId)
+                            .file(image)
+                            .with(request -> {
+                                request.setMethod("PUT");
+                                return request;
+                            }))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.message").value(MSG_IMAGE_UPDATE_FAILED));
         }
 
         @Test

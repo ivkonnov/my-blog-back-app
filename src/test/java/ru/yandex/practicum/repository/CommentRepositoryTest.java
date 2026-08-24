@@ -21,7 +21,7 @@ public class CommentRepositoryTest extends AbstractPostgresMvcTest {
     CommentRepository commentRepository;
 
     @Nested
-    class addComment {
+    class AddComment {
         @Test
         void addComment_success() {
             for (int i = 1; i < 10; i++) {
@@ -45,7 +45,7 @@ public class CommentRepositoryTest extends AbstractPostgresMvcTest {
     }
 
     @Nested
-    class getComments {
+    class GetComments {
         @Test
         void getComment_success() {
             Long postId = 1L;

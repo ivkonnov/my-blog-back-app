@@ -17,10 +17,11 @@ services:
       timeout: 10s
       retries: 5
 
-  tomcat:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: my-blog-back-app
     ports:
       - "8080:8080"
     depends_on:

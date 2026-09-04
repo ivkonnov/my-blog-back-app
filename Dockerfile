@@ -1,14 +1,17 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
-COPY mvnw .
-COPY pom.xml .
-COPY .mvn .mvn
-RUN chmod +x mvnw
+COPY gradle ./gradle
+COPY build.gradle.kts settings.gradle.kts .
+COPY gradlew .
+RUN chmod +x gradlew
+RUN ./gradlew --no-daemon dependencies
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
+RUN ./gradlew --no-daemon bootJar
 
-FROM tomcat:11.0.21-jdk21-temurin-jammy
-RUN rm -rf /usr/local/tomcat/webapps/*
-COPY --from=builder /app/target/my-blog-back-app.war /usr/local/tomcat/webapps/ROOT.war
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+# Копируем только готовый JAR-файл
+COPY --from=builder /app/build/libs/blog-back-app.jar blog-back-app.jar
+# Открываем порт и запускаем
 EXPOSE 8080
-CMD ["catalina.sh", "run"]
+ENTRYPOINT ["java", "-jar", "blog-back-app.jar"]

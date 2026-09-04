@@ -11,7 +11,7 @@ RUN ./gradlew --no-daemon bootJar
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 # Копируем только готовый JAR-файл
-COPY --from=builder /app/build/libs/my-blog-back-app-*.jar app.jar
+COPY --from=builder /app/build/libs/blog-back-app.jar blog-back-app.jar
 # Открываем порт и запускаем
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "blog-back-app.jar"]

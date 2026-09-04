@@ -5,7 +5,3 @@ spring:
     url: jdbc:postgresql://postgres:5432/blogdb
     username: postgres
     password: password
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql

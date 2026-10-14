@@ -14,7 +14,6 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import ru.yandex.practicum.AbstractPostgresMvcTest;
 import ru.yandex.practicum.dto.*;
 import ru.yandex.practicum.service.PostService;
@@ -31,7 +30,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static ru.yandex.practicum.util.PostPreviewUtil.*;
 import static ru.yandex.practicum.validation.PostValidationLimits.*;
 import static ru.yandex.practicum.exception.ErrorMessages.*;
-
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
@@ -407,7 +405,7 @@ public class PostControllerTest extends AbstractPostgresMvcTest {
             Long postId = 1L;
             MockMultipartFile image = new MockMultipartFile("image", "image.jpg", "image/jpeg", JPEG_IMAGE_STUB);
 
-            mockMvc.perform(MockMvcRequestBuilders.multipart("/api/posts/{postId}/image", postId)
+            mockMvc.perform(multipart("/api/posts/{postId}/image", postId)
                             .file(image)
                             .with(request -> {
                                 request.setMethod("PUT");
